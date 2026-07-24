@@ -9,20 +9,29 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.6.0",
     "@google/genai": "^2.13.0",
-    "convex": "^1.42.3",
+    "@supabase/supabase-js": "^2.110.8",
+    "framer-motion": "^12.42.2",
+    "katex": "^0.18.1",
     "lucide-react": "^1.26.0",
     "next": "16.2.11",
     "react": "19.2.4",
-    "react-dom": "19.2.4"
+    "react-dom": "19.2.4",
+    "react-markdown": "^10.1.0",
+    "rehype-katex": "^7.0.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/katex": "^0.16.8",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.11",
+    "supabase": "^2.109.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { Project } from '@/types';
 import { X, Plus, FolderPlus } from 'lucide-react';
 
@@ -19,33 +19,36 @@ interface ProjectModalProps {
   ) => void;
 }
 
-export function ProjectModal({
-  isOpen,
+export function ProjectModal({ isOpen, onClose, onCreateProject, editingProject = null, onUpdateProject }: ProjectModalProps) {
+  if (!isOpen) return null;
+
+  // Remount the form whenever which project (or "new project") is being
+  // edited changes, so its initial state is derived once from props instead
+  // of being synced via an effect.
+  return (
+    <ProjectModalForm
+      key={editingProject?.id ?? 'new'}
+      onClose={onClose}
+      onCreateProject={onCreateProject}
+      editingProject={editingProject}
+      onUpdateProject={onUpdateProject}
+    />
+  );
+}
+
+function ProjectModalForm({
   onClose,
   onCreateProject,
-  editingProject = null,
+  editingProject,
   onUpdateProject,
-}: ProjectModalProps) {
-  const [name, setName] = useState('');
-  const [description, setDescription] = useState('');
-  const [category, setCategory] = useState<Project['category']>('Residencial');
+}: Omit<ProjectModalProps, 'isOpen'>) {
+  const [name, setName] = useState(editingProject?.name ?? '');
+  const [description, setDescription] = useState(editingProject?.description ?? '');
+  const [category, setCategory] = useState<Project['category']>(
+    editingProject?.category ?? 'Residencial',
+  );
 
   const isEditing = Boolean(editingProject);
-
-  // Prefill form when editing an existing (e.g. auto-created) project.
-  useEffect(() => {
-    if (isOpen && editingProject) {
-      setName(editingProject.name);
-      setDescription(editingProject.description || '');
-      setCategory(editingProject.category || 'Residencial');
-    } else if (isOpen && !editingProject) {
-      setName('');
-      setDescription('');
-      setCategory('Residencial');
-    }
-  }, [isOpen, editingProject]);
-
-  if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "katex/dist/katex.min.css";
 
 :root {
   --font-sans: var(--font-satoshi), sans-serif;
@@ -16,19 +17,26 @@
 
 * {
   font-family: var(--font-sans);
+  scrollbar-width: thin;
+  scrollbar-color: #e4e4e7 transparent;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  overflow-x: hidden;
 }
 
-/* Custom Minimalist Scrollbars (No default bulky browser arrows) */
+/* Custom sleek scrollbar styling (removes native arrows & bulky scroll tracks) */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 4px;
+  height: 4px;
+}
+
+::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
 }
 
 ::-webkit-scrollbar-track {
@@ -44,7 +52,7 @@ body {
   background: #BA4E20;
 }
 
-/* Utility to completely hide scrollbars when needed */
+/* Utility to completely hide scrollbars where needed */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -52,4 +60,36 @@ body {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+}
+
+/* KaTeX math font protection - prevents global * font-family from distorting math fraction metrics */
+.katex {
+  font-size: 1.08em;
+  line-height: 1.25;
+  text-indent: 0;
+}
+
+.katex * {
+  font-family: KaTeX_Main, "KaTeX_Main", "Times New Roman", serif !important;
+}
+
+.katex .katex-html {
+  display: inline-block;
+}
+
+/* Styled equation block ($$ ... $$) for architectural formulas */
+.katex-display {
+  display: flex !important;
+  justify-content: center;
+  margin: 0.75rem 0 !important;
+  padding: 0.85rem 1.25rem !important;
+  background-color: #f8f9fa;
+  border: 1px solid #e4e4e7;
+  border-radius: 0.625rem;
+  overflow-x: auto;
+}
+
+.katex-display > .katex {
+  font-size: 1.15em;
+  white-space: normal;
 }

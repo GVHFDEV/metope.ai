@@ -60,11 +60,11 @@ export function Header({
                 </div>
 
                 <div className="max-h-60 overflow-y-auto py-1">
-                  {projects.map((proj) => {
+                  {projects.map((proj, idx) => {
                     const isSelected = activeProject?.id === proj.id;
                     return (
                       <button
-                        key={proj.id}
+                        key={proj.id || `header-proj-${idx}`}
                         onClick={() => {
                           onSelectProject(proj);
                           setIsDropdownOpen(false);

@@ -13,7 +13,7 @@ export interface ProjectFile {
   type: 'pdf' | 'image' | 'doc' | 'txt';
   mime_type: string;
   size: number;
-  url: string; // Access-checked download URL resolved by the backend (Convex storage.getUrl)
+  url: string; // Signed Supabase Storage URL, short-lived (1h)
   content_text?: string; // Extracted text for text-like documents
   created_at: string;
 }

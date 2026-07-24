@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { ChatMessage, ProjectFile, QuickActionType, Project } from '@/types';
+import { MarkdownRenderer } from './MarkdownRenderer';
 import {
   Send,
   Loader2,
@@ -14,6 +16,10 @@ import {
   ChevronDown,
   Folder,
   Plus,
+  Pencil,
+  Trash2,
+  X,
+  Hash,
 } from 'lucide-react';
 
 interface ChatPanelProps {
@@ -23,6 +29,8 @@ interface ChatPanelProps {
   files: ProjectFile[];
   onSelectProject: (project: Project) => void;
   onOpenNewProjectModal: () => void;
+  onEditProject?: (project: Project) => void;
+  onDeleteProject?: (projectId: string) => void;
   onSendMessage: (content: string, actionType?: QuickActionType | 'general') => void;
   isLoading: boolean;
 }
@@ -34,26 +42,87 @@ export function ChatPanel({
   files,
   onSelectProject,
   onOpenNewProjectModal,
+  onEditProject,
+  onDeleteProject,
   onSendMessage,
   isLoading,
 }: ChatPanelProps) {
   const [inputPrompt, setInputPrompt] = useState('');
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
   const [isHeaderDropdownOpen, setIsHeaderDropdownOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
+  
+  // File Mention / Indexing State
+  const [mentionedFiles, setMentionedFiles] = useState<ProjectFile[]>([]);
+  const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
+  const [isMentionMenuOpen, setIsMentionMenuOpen] = useState(false);
+  const [mentionFilter, setMentionFilter] = useState('');
+
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, isLoading]);
 
+  const handleTextareaChange = (text: string) => {
+    setInputPrompt(text);
+
+    // Check if user typed '#'
+    const lastHashIndex = text.lastIndexOf('#');
+    if (lastHashIndex !== -1) {
+      const textAfterHash = text.slice(lastHashIndex + 1);
+      if (!textAfterHash.includes(' ')) {
+        setMentionFilter(textAfterHash.toLowerCase());
+        setIsMentionMenuOpen(true);
+        return;
+      }
+    }
+    if (isMentionMenuOpen && !text.includes('#')) {
+      setIsMentionMenuOpen(false);
+    }
+  };
+
+  const handleSelectMentionFile = (file: ProjectFile) => {
+    if (!mentionedFiles.some((f) => f.id === file.id)) {
+      setMentionedFiles((prev) => [...prev, file]);
+    }
+
+    // Strip raw trailing '#' if present
+    const lastHashIndex = inputPrompt.lastIndexOf('#');
+    if (lastHashIndex !== -1) {
+      const beforeHash = inputPrompt.slice(0, lastHashIndex);
+      setInputPrompt(beforeHash.trim());
+    }
+    setIsMentionMenuOpen(false);
+    setMentionFilter('');
+  };
+
+  const removeMentionedFile = (fileId: string) => {
+    setMentionedFiles((prev) => prev.filter((f) => f.id !== fileId));
+  };
+
   const handleSend = () => {
-    if (!inputPrompt.trim() || isLoading) return;
-    onSendMessage(inputPrompt.trim(), 'general');
+    if ((!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading) return;
+
+    let finalPrompt = inputPrompt.trim();
+    if (mentionedFiles.length > 0) {
+      const focusHeader = `[FOCO DE ANÁLISE PRIORITÁRIO NOS ARQUIVOS INDEXADOS: ${mentionedFiles
+        .map((f) => f.name)
+        .join(', ')}]\n\n`;
+      finalPrompt = focusHeader + (finalPrompt || 'Analisar arquivo(s) indexado(s).');
+    }
+
+    onSendMessage(finalPrompt, 'general');
     setInputPrompt('');
+    setMentionedFiles([]);
+    setIsMentionMenuOpen(false);
+    setIsPlusMenuOpen(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -96,75 +165,118 @@ export function ChatPanel({
     },
   ];
 
-  // Helper to render structured Markdown text cleanly
-  const renderMessageContent = (content: string) => {
-    const lines = content.split('\n');
+  const hasUserMessages = messages.some((m) => m.role === 'user');
+
+  const filteredMentionFiles = files.filter((f) =>
+    f.name.toLowerCase().includes(mentionFilter)
+  );
+
+  const renderPlusMenu = () => (
+    <AnimatePresence>
+      <div
+        className="fixed inset-0 z-40"
+        onClick={() => setIsPlusMenuOpen(false)}
+      />
+      <motion.div
+        initial={{ opacity: 0, y: 6, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 4, scale: 0.96 }}
+        transition={{ duration: 0.12, ease: 'easeOut' }}
+        className="absolute left-0 bottom-full mb-2 w-56 bg-white border border-[#e4e4e7] rounded-xl shadow-xl z-50 py-1 overflow-hidden"
+      >
+        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold">
+          OPÇÕES DE ANEXO
+        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setIsPlusMenuOpen(false);
+            setIsMentionMenuOpen(true);
+          }}
+          className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 hover:bg-[#fdf5f2] text-[#09090b] transition-colors cursor-pointer"
+        >
+          <Paperclip className="w-4 h-4 text-[#BA4E20]" />
+          <span>Indexar Arquivo</span>
+        </button>
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  const renderMentionDropdown = () => (
+    <AnimatePresence>
+      <div
+        className="fixed inset-0 z-40"
+        onClick={() => setIsMentionMenuOpen(false)}
+      />
+      <motion.div
+        initial={{ opacity: 0, y: 6, scale: 0.96 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 4, scale: 0.96 }}
+        transition={{ duration: 0.12, ease: 'easeOut' }}
+        className="absolute left-0 bottom-full mb-2 w-72 bg-white border border-[#e4e4e7] rounded-xl shadow-xl z-50 py-1 overflow-hidden"
+      >
+        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold flex items-center justify-between">
+          <div className="flex items-center gap-1">
+            <Hash className="w-3 h-3 text-[#BA4E20]" />
+            <span>INDEXAR ARQUIVO DO PROJETO</span>
+          </div>
+          <span className="text-[9px] font-normal text-[#a1a1aa]"># ou +</span>
+        </div>
+        <div className="max-h-48 overflow-y-auto py-1">
+          {filteredMentionFiles.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-[#a1a1aa] italic">
+              Nenhum arquivo encontrado no projeto
+            </div>
+          ) : (
+            filteredMentionFiles.map((file, idx) => (
+              <button
+                key={file.id || `mention-${idx}`}
+                type="button"
+                onClick={() => handleSelectMentionFile(file)}
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-[#fdf5f2] text-[#09090b] transition-colors cursor-pointer"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#BA4E20] shrink-0" />
+                <div className="truncate flex-1">
+                  <div className="truncate font-medium">{file.name}</div>
+                  <div className="text-[9px] font-mono text-[#71717a]">{file.type}</div>
+                </div>
+              </button>
+            ))
+          )}
+        </div>
+      </motion.div>
+    </AnimatePresence>
+  );
+
+  const renderMentionPills = () => {
+    if (mentionedFiles.length === 0) return null;
     return (
-      <div className="space-y-2 text-xs leading-relaxed text-[#09090b]">
-        {lines.map((line, idx) => {
-          if (line.startsWith('## ')) {
-            return (
-              <h2
-                key={idx}
-                className="text-sm font-bold font-mono text-[#09090b] pt-2 pb-1 border-b border-[#e4e4e7] uppercase tracking-wide"
-              >
-                {line.replace('## ', '')}
-              </h2>
-            );
-          }
-          if (line.startsWith('### ')) {
-            return (
-              <h3
-                key={idx}
-                className="text-xs font-semibold text-[#BA4E20] pt-1.5 pb-0.5"
-              >
-                {line.replace('### ', '')}
-              </h3>
-            );
-          }
-          if (line.startsWith('* ') || line.startsWith('- ')) {
-            return (
-              <li key={idx} className="ml-4 list-disc text-[#27272a]">
-                {formatBoldText(line.substring(2))}
-              </li>
-            );
-          }
-          if (line.trim() === '---') {
-            return <hr key={idx} className="border-[#e4e4e7] my-2" />;
-          }
-          if (!line.trim()) {
-            return <div key={idx} className="h-1" />;
-          }
-          return (
-            <p key={idx} className="text-[#27272a]">
-              {formatBoldText(line)}
-            </p>
-          );
-        })}
+      <div className="flex flex-wrap gap-1.5 mb-2 pb-1.5 border-b border-[#f4f4f5]">
+        {mentionedFiles.map((file, idx) => (
+          <span
+            key={file.id || `pill-${idx}`}
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium"
+          >
+            <Paperclip className="w-3 h-3" />
+            <span className="max-w-[180px] truncate">{file.name}</span>
+            <button
+              type="button"
+              onClick={() => removeMentionedFile(file.id)}
+              className="hover:text-[#9c3f19] cursor-pointer ml-0.5"
+              title="Remover indexação"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </span>
+        ))}
       </div>
     );
   };
 
-  const formatBoldText = (text: string) => {
-    const parts = text.split(/(\*\*.*?\*\*)/g);
-    return parts.map((part, i) => {
-      if (part.startsWith('**') && part.endsWith('**')) {
-        return (
-          <strong key={i} className="font-semibold text-[#09090b]">
-            {part.slice(2, -2)}
-          </strong>
-        );
-      }
-      return part;
-    });
-  };
-
-  const hasUserMessages = messages.some((m) => m.role === 'user');
-
   return (
-    <main className="flex-1 flex flex-col h-screen bg-[#fafafa] text-[#09090b] font-sans">
+    <main className="flex-1 flex flex-col h-screen max-h-screen overflow-hidden bg-[#fafafa] text-[#09090b] font-sans">
       {/* Top Header Bar with Project Selector Dropdown */}
-      <header className="h-13 px-6 border-b border-[#e4e4e7] bg-white flex items-center justify-between select-none relative z-30">
+      <header className="h-13 px-6 border-b border-[#e4e4e7] bg-white flex items-center justify-between select-none relative z-30 flex-shrink-0">
         <div className="relative">
           {/* Active Project Dropdown Trigger Button */}
           <button
@@ -186,47 +298,119 @@ export function ChatPanel({
           </button>
 
           {/* Header Project Selector Dropdown Menu */}
-          {isHeaderDropdownOpen && (
-            <>
-              <div
-                className="fixed inset-0 z-40"
-                onClick={() => setIsHeaderDropdownOpen(false)}
-              />
-              <div className="absolute left-0 top-full mt-2 w-80 bg-white border border-[#e4e4e7] rounded-xl shadow-lg z-50 py-1 overflow-hidden">
-                {/* Simplified Dropdown Header without TROCAR / CRIAR */}
-                <div className="px-3.5 py-2 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold">
-                  PROJETOS ({projects.length})
-                </div>
+          <AnimatePresence>
+            {isHeaderDropdownOpen && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setIsHeaderDropdownOpen(false)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: -4, scale: 0.96 }}
+                  transition={{ duration: 0.12, ease: 'easeOut' }}
+                  className="absolute left-0 top-full mt-2 w-80 bg-white border border-[#e4e4e7] rounded-xl shadow-lg z-50 py-1 overflow-hidden"
+                >
+                  <div className="px-3.5 py-2 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold">
+                    PROJETOS ({projects.length})
+                  </div>
 
-                <div className="max-h-64 overflow-y-auto py-1">
-                  {projects.map((proj) => {
-                    const isSelected = activeProject?.id === proj.id;
-                    return (
-                      <button
-                        key={proj.id}
-                        onClick={() => {
-                          onSelectProject(proj);
-                          setIsHeaderDropdownOpen(false);
-                        }}
-                        className={`w-full text-left px-3.5 py-2.5 text-xs flex items-center justify-between transition-colors ${
-                          isSelected
-                            ? 'bg-[#fdf5f2] text-[#09090b] font-semibold'
-                            : 'hover:bg-[#f8f9fa] text-[#71717a] hover:text-[#09090b]'
-                        }`}
-                      >
-                        <div className="truncate pr-2">
+                  <div className="max-h-64 overflow-y-auto py-1">
+                    {projects.map((proj, idx) => {
+                      const isSelected = activeProject?.id === proj.id;
+                      const isDeletingThis = deletingProjectId === proj.id;
+
+                      return (
+                        <div
+                          key={proj.id || `proj-${idx}`}
+                          className={`group w-full px-3.5 py-2 text-xs flex items-center justify-between transition-colors ${
+                            isSelected
+                              ? 'bg-[#fdf5f2] text-[#09090b] font-semibold'
+                              : 'hover:bg-[#f8f9fa] text-[#71717a] hover:text-[#09090b]'
+                          }`}
+                        >
+                        <button
+                          onClick={() => {
+                            onSelectProject(proj);
+                            setIsHeaderDropdownOpen(false);
+                          }}
+                          className="flex-1 text-left truncate pr-2 cursor-pointer"
+                        >
                           <div className="truncate">{proj.name}</div>
-                          <div className="text-[10px] font-mono text-[#71717a]">
+                          <div className="text-[10px] font-mono text-[#71717a] font-normal">
                             {proj.category || 'Residencial'}
                           </div>
-                        </div>
-                        {isSelected && <Check className="w-4 h-4 text-[#BA4E20]" />}
-                      </button>
+                        </button>
+
+                        {/* Inline Delete Confirmation or Check icon / Action Buttons */}
+                        {isDeletingThis ? (
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onDeleteProject?.(proj.id);
+                                setDeletingProjectId(null);
+                              }}
+                              className="px-2 py-0.5 bg-[#BA4E20] hover:bg-[#9c3f19] text-white text-[10px] rounded font-medium cursor-pointer"
+                            >
+                              Excluir
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setDeletingProjectId(null);
+                              }}
+                              className="px-1.5 py-0.5 bg-[#e4e4e7] hover:bg-[#d4d4d8] text-[#09090b] text-[10px] rounded cursor-pointer"
+                            >
+                              Cancelar
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center justify-end shrink-0 min-w-[36px]">
+                            {/* Checkmark icon (shows on right when selected, hides on hover) */}
+                            {isSelected && (
+                              <div className="group-hover:hidden flex items-center">
+                                <Check className="w-4 h-4 text-[#BA4E20]" />
+                              </div>
+                            )}
+
+                            {/* Action Buttons (appear on hover, replacing checkmark) */}
+                            <div className="hidden group-hover:flex items-center gap-1">
+                              {onEditProject && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setIsHeaderDropdownOpen(false);
+                                    onEditProject(proj);
+                                  }}
+                                  className="p-1 hover:bg-white hover:text-[#BA4E20] border border-transparent hover:border-[#e4e4e7] rounded text-[#71717a] transition-all cursor-pointer"
+                                  title="Editar projeto"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {onDeleteProject && (
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setDeletingProjectId(proj.id);
+                                  }}
+                                  className="p-1 hover:bg-white hover:text-[#BA4E20] border border-transparent hover:border-[#e4e4e7] rounded text-[#71717a] transition-all cursor-pointer"
+                                  title="Excluir projeto"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     );
                   })}
                 </div>
 
-                {/* Create New Project Button without double ++ */}
+                {/* Create New Project Button */}
                 <div className="p-2 border-t border-[#e4e4e7]">
                   <button
                     onClick={() => {
@@ -239,64 +423,100 @@ export function ChatPanel({
                     <span>Criar Novo Projeto</span>
                   </button>
                 </div>
-              </div>
+              </motion.div>
             </>
           )}
-        </div>
-      </header>
+        </AnimatePresence>
+      </div>
+    </header>
 
       {/* Main Content View */}
       {!hasUserMessages ? (
         /* BIELIK-INSPIRED EMPTY STATE CANVAS (LIGHT MODE) */
-        <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-4xl mx-auto w-full select-none">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-5xl mx-auto w-full select-none overflow-y-auto no-scrollbar">
           {/* Centered Heading */}
-          <h1 className="text-3xl font-bold tracking-tight text-[#09090b] mb-8 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#09090b] mb-8 text-center">
             Em que posso ajudar com seu projeto?
           </h1>
 
           {/* Centered Elevated Input Box */}
-          <div className="w-full bg-white border border-[#e4e4e7] focus-within:border-[#BA4E20] rounded-xl p-4 shadow-sm focus-within:shadow-md transition-all mb-6">
-            <textarea
-              rows={3}
-              value={inputPrompt}
-              onChange={(e) => setInputPrompt(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Digite sua pergunta sobre as plantas, memorial, setorização ou acabamentos..."
-              className="w-full bg-transparent text-sm text-[#09090b] placeholder-[#a1a1aa] focus:outline-none resize-none"
-            />
+          <div className="w-full bg-white border border-[#e4e4e7] focus-within:border-[#BA4E20] rounded-xl p-4 shadow-sm focus-within:shadow-md transition-all mb-6 relative">
+            {isPlusMenuOpen && renderPlusMenu()}
+            {isMentionMenuOpen && renderMentionDropdown()}
 
-            {/* Input Toolbar */}
-            <div className="flex items-center justify-between pt-2 border-t border-[#f4f4f5]">
-              <div className="flex items-center gap-1.5 text-xs text-[#71717a]">
-                <button
-                  title="Contexto de arquivos ativo"
-                  className="p-1.5 hover:bg-[#fdf5f2] rounded-md text-[#71717a] hover:text-[#BA4E20] flex items-center gap-1.5 text-xs transition-colors font-mono"
+            {/* Input bar layout with + button, inline pills, textarea, and fixed send button */}
+            <div className="flex flex-col gap-2">
+              {/* Inline Mention Pills inside input container */}
+              {mentionedFiles.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pb-2 border-b border-[#f4f4f5]">
+                  {mentionedFiles.map((file, idx) => (
+                    <span
+                      key={file.id || `empty-pill-${idx}`}
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-xs font-mono font-medium shrink-0"
+                    >
+                      <Paperclip className="w-3 h-3" />
+                      <span className="max-w-[180px] truncate">{file.name}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeMentionedFile(file.id)}
+                        className="hover:text-[#9c3f19] cursor-pointer ml-0.5"
+                        title="Remover indexação"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex items-start gap-2">
+                {/* + Button with Framer Motion spring rotation & scale */}
+                <motion.button
+                  type="button"
+                  whileHover={{ scale: 1.06 }}
+                  whileTap={{ scale: 0.94 }}
+                  onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
+                  title="Opções de anexo (+)"
+                  className="p-2 bg-[#f8f9fa] hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-lg text-[#BA4E20] transition-colors cursor-pointer shrink-0 mt-0.5"
                 >
-                  <Paperclip className="w-3.5 h-3.5 text-[#BA4E20]" />
-                  <span>{files.length} arquivos ativos</span>
+                  <motion.div
+                    animate={{ rotate: isPlusMenuOpen ? 45 : 0 }}
+                    transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                  >
+                    <Plus className="w-4 h-4" />
+                  </motion.div>
+                </motion.button>
+
+                <textarea
+                  rows={3}
+                  value={inputPrompt}
+                  onChange={(e) => handleTextareaChange(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Enviar mensagem para Metope AI..."
+                  className="flex-1 bg-transparent text-sm md:text-base text-[#09090b] placeholder-[#a1a1aa] focus:outline-none resize-none leading-relaxed"
+                />
+
+                {/* Fixed Square Send Button - Never squished */}
+                <button
+                  disabled={(!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading}
+                  onClick={handleSend}
+                  className={`w-9 h-9 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors flex items-center justify-center shrink-0 mt-0.5 ${
+                    (!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading
+                      ? 'opacity-40 cursor-not-allowed'
+                      : 'cursor-pointer'
+                  }`}
+                >
+                  <Send className="w-4 h-4" />
                 </button>
               </div>
-
-              <button
-                disabled={!inputPrompt.trim() || isLoading}
-                onClick={handleSend}
-                className={`px-4 py-2 bg-[#BA4E20] hover:bg-[#9c3f19] text-white font-medium text-xs rounded-lg transition-colors flex items-center gap-1.5 ${
-                  !inputPrompt.trim() || isLoading
-                    ? 'opacity-40 cursor-not-allowed'
-                    : 'cursor-pointer'
-                }`}
-              >
-                <span>Enviar</span>
-                <Send className="w-3.5 h-3.5" />
-              </button>
             </div>
           </div>
 
           {/* Quick Action Cards Below Input */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
-            {quickActions.map((action) => (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5 w-full">
+            {quickActions.map((action, idx) => (
               <button
-                key={action.id}
+                key={action.id || `qa-${idx}`}
                 disabled={isLoading}
                 onClick={() => onExecuteAction(action.id)}
                 className="p-3.5 bg-white hover:bg-[#fdf5f2]/40 border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-xl transition-all text-left flex items-start gap-3 shadow-2xs group cursor-pointer"
@@ -315,22 +535,30 @@ export function ChatPanel({
               </button>
             ))}
           </div>
+
+          {/* Safety Disclaimer Legend */}
+          <p className="text-[10px] font-mono text-[#a1a1aa] text-center mt-4 leading-tight max-w-xl">
+            O Metope AI pode cometer erros. Verifique a veracidade das informações e o cumprimento das normas técnicas com um profissional habilitado.
+          </p>
         </div>
       ) : (
-        /* ACTIVE CONVERSATION THREAD */
-        <div className="flex-1 flex flex-col min-h-0">
-          <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-4xl mx-auto w-full">
-            {messages.map((msg) => {
+        /* ACTIVE CONVERSATION THREAD (Strict height constraint + internal container scroll) */
+        <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
+          <div
+            ref={chatContainerRef}
+            className="flex-1 overflow-y-auto p-6 md:p-8 space-y-5 max-w-6xl mx-auto w-full no-scrollbar"
+          >
+            {messages.map((msg, idx) => {
               const isUser = msg.role === 'user';
               return (
                 <div
-                  key={msg.id}
+                  key={msg.id || `msg-${idx}`}
                   className={`flex flex-col ${
                     isUser ? 'items-end' : 'items-start'
                   }`}
                 >
                   {/* Sender Header */}
-                  <div className="flex items-center gap-2 mb-1.5 text-[11px] font-mono text-[#71717a]">
+                  <div className="flex items-center gap-2 mb-1 text-[11px] font-mono text-[#71717a]">
                     <span className="font-semibold text-[#09090b]">
                       {isUser ? 'VOCÊ' : 'METOPE AI'}
                     </span>
@@ -343,15 +571,21 @@ export function ChatPanel({
                     </span>
                   </div>
 
-                  {/* Message Bubble Card */}
+                  {/* Message Bubble Card - Shrink-wrapped to fit content, up to max-w-4xl */}
                   <div
-                    className={`group relative max-w-3xl p-4 border rounded-xl shadow-2xs ${
+                    className={`group relative max-w-4xl p-3.5 px-4 border rounded-xl shadow-2xs ${
                       isUser
                         ? 'bg-[#f4f4f5] border-[#e4e4e7] text-[#09090b]'
                         : 'bg-white border-[#e4e4e7] text-[#09090b]'
                     }`}
                   >
-                    {renderMessageContent(msg.content)}
+                    {isUser ? (
+                      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
+                        {msg.content}
+                      </div>
+                    ) : (
+                      <MarkdownRenderer content={msg.content} />
+                    )}
 
                     {/* Copy Action Button */}
                     {!isUser && (
@@ -372,54 +606,90 @@ export function ChatPanel({
               );
             })}
 
-            {/* Loading Indicator */}
+            {/* 3 Pulsing Dots Loading Indicator */}
             {isLoading && (
-              <div className="flex flex-col items-start">
-                <div className="flex items-center gap-2 mb-1.5 text-[11px] font-mono text-[#71717a]">
+              <div className="flex flex-col items-start space-y-1.5">
+                <div className="flex items-center gap-2 text-[11px] font-mono text-[#71717a]">
                   <span className="font-semibold text-[#09090b]">METOPE AI</span>
-                  <span>•</span>
-                  <span>ANALISANDO PROJETO</span>
                 </div>
-                <div className="p-4 bg-white border border-[#e4e4e7] rounded-xl flex items-center gap-3 text-xs text-[#71717a] shadow-2xs">
-                  <Loader2 className="w-4 h-4 text-[#BA4E20] animate-spin" />
-                  <span className="font-mono text-[#09090b]">
-                    Gerando parecer técnico detalhado via Gemini...
-                  </span>
+                <div className="px-4 py-3 bg-white border border-[#e4e4e7] rounded-xl flex items-center gap-2 shadow-2xs">
+                  <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce [animation-delay:-0.3s]" />
+                  <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce [animation-delay:-0.15s]" />
+                  <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce" />
                 </div>
               </div>
             )}
-
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Bottom Fixed Input Bar for Active Chat */}
-          <div className="p-4 bg-[#fafafa] border-t border-[#e4e4e7] max-w-4xl mx-auto w-full">
-            <div className="flex items-center justify-between text-[11px] font-mono text-[#71717a] mb-2">
-              <span className="text-[#BA4E20] font-semibold">{files.length} ARQUIVO(S) NO CONTEXTO</span>
-            </div>
+          <div className="p-4 md:px-6 bg-[#fafafa] border-t border-[#e4e4e7] max-w-6xl mx-auto w-full flex-shrink-0 relative">
+            {isPlusMenuOpen && renderPlusMenu()}
+            {isMentionMenuOpen && renderMentionDropdown()}
 
-            <div className="flex items-stretch gap-2 bg-white border border-[#e4e4e7] focus-within:border-[#BA4E20] rounded-xl p-2 transition-colors shadow-2xs">
+            <div className="flex items-center gap-2 bg-white border border-[#e4e4e7] focus-within:border-[#BA4E20] rounded-xl p-2 transition-colors shadow-2xs">
+              {/* + Button with Framer Motion spring rotation & scale */}
+              <motion.button
+                type="button"
+                whileHover={{ scale: 1.06 }}
+                whileTap={{ scale: 0.94 }}
+                onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
+                title="Opções de anexo (+)"
+                className="p-1.5 bg-[#f8f9fa] hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-lg text-[#BA4E20] transition-colors cursor-pointer shrink-0"
+              >
+                <motion.div
+                  animate={{ rotate: isPlusMenuOpen ? 45 : 0 }}
+                  transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                >
+                  <Plus className="w-4 h-4" />
+                </motion.div>
+              </motion.button>
+
+              {/* Inline Mention Pills */}
+              {mentionedFiles.map((file, idx) => (
+                <span
+                  key={file.id || `chat-pill-${idx}`}
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium shrink-0"
+                >
+                  <Paperclip className="w-3 h-3" />
+                  <span className="max-w-[130px] truncate">{file.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeMentionedFile(file.id)}
+                    className="hover:text-[#9c3f19] cursor-pointer ml-0.5"
+                    title="Remover indexação"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+
               <textarea
                 rows={1}
                 value={inputPrompt}
-                onChange={(e) => setInputPrompt(e.target.value)}
+                onChange={(e) => handleTextareaChange(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Enviar mensagem para o Metope AI..."
-                className="flex-1 bg-transparent text-xs text-[#09090b] placeholder-[#a1a1aa] focus:outline-none px-2 py-1.5 resize-none"
+                placeholder="Enviar mensagem para Metope AI..."
+                className="flex-1 bg-transparent text-xs md:text-[13px] text-[#09090b] placeholder-[#a1a1aa] focus:outline-none px-1.5 py-1.5 resize-none leading-relaxed"
               />
 
+              {/* Fixed Square Send Button - Never squished */}
               <button
-                disabled={!inputPrompt.trim() || isLoading}
+                disabled={(!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading}
                 onClick={handleSend}
-                className={`px-3 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors flex items-center justify-center ${
-                  !inputPrompt.trim() || isLoading
+                className={`w-8 h-8 md:w-9 md:h-9 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors flex items-center justify-center shrink-0 ${
+                  (!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading
                     ? 'opacity-40 cursor-not-allowed'
                     : 'cursor-pointer'
                 }`}
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-4 h-4" />
               </button>
             </div>
+
+            {/* Safety Disclaimer Legend */}
+            <p className="text-[10px] font-mono text-[#a1a1aa] text-center mt-2 leading-tight">
+              O Metope AI pode cometer erros. Verifique a veracidade das informações e o cumprimento das normas técnicas com um profissional habilitado.
+            </p>
           </div>
         </div>
       )}

@@ -13,6 +13,8 @@ import {
   ChevronsLeft,
   Search,
 } from 'lucide-react';
+import { AuthPanel } from './AuthPanel';
+import type { User } from '@supabase/supabase-js';
 
 interface SidebarProps {
   files: ProjectFile[];
@@ -20,6 +22,10 @@ interface SidebarProps {
   onDeleteFile: (fileId: string) => void;
   onPreviewFile: (file: ProjectFile) => void;
   isUploading?: boolean;
+  user: User | null;
+  isAuthLoading: boolean;
+  onSignIn: () => void;
+  onSignOut: () => void;
 }
 
 export function Sidebar({
@@ -28,6 +34,10 @@ export function Sidebar({
   onDeleteFile,
   onPreviewFile,
   isUploading = false,
+  user,
+  isAuthLoading,
+  onSignIn,
+  onSignOut,
 }: SidebarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -148,7 +158,7 @@ export function Sidebar({
         </div>
 
         {/* Files List */}
-        <div className="flex-1 overflow-y-auto p-3 space-y-1">
+        <div className="flex-1 overflow-y-auto p-3 space-y-1 no-scrollbar">
           <div className="px-1 py-1 text-[10px] font-mono font-semibold text-[#71717a] uppercase tracking-wider flex items-center justify-between">
             <span>ARQUIVOS DO PROJETO</span>
             <span className="text-[#BA4E20] font-bold">{filteredFiles.length}</span>
@@ -203,6 +213,9 @@ export function Sidebar({
           )}
         </div>
       </div>
+
+      {/* Auth control: fixed footer, below the file list */}
+      <AuthPanel user={user} isLoading={isAuthLoading} onSignIn={onSignIn} onSignOut={onSignOut} />
     </aside>
   );
 }
