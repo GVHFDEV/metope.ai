@@ -10,7 +10,7 @@ export async function POST(req: Request) {
       files: ProjectFile[];
       actionType?: 'summary' | 'memorial' | 'layout_analysis' | 'general';
     };
-    let { previousMessages } = body as { previousMessages?: { role: string; content: string }[] };
+    let { previousMessages } = body as { previousMessages?: { role: 'user' | 'assistant'; content: string }[] };
 
     if (!userPrompt && (!actionType || actionType === 'general')) {
       return NextResponse.json({ error: 'Prompt do usuário é obrigatório.' }, { status: 400 });

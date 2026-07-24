@@ -35,6 +35,44 @@ interface ChatPanelProps {
   isLoading: boolean;
 }
 
+function renderUserMessageContent(content: string) {
+  const match = content.match(/^\[FOCO DE ANÁLISE PRIORITÁRIO NOS ARQUIVOS INDEXADOS:\s*(.*?)\]\n\n?([\s\S]*)$/);
+
+  if (!match) {
+    return (
+      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
+        {content}
+      </div>
+    );
+  }
+
+  const fileNames = match[1].split(',').map((s) => s.trim()).filter(Boolean);
+  const remainingText = match[2];
+
+  return (
+    <div className="space-y-2">
+      {/* Render colored pills/tags for sent indexed files */}
+      <div className="flex flex-wrap gap-1.5 pb-1.5 border-b border-[#e4e4e7]">
+        {fileNames.map((fileName, idx) => (
+          <span
+            key={idx}
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium"
+          >
+            <Paperclip className="w-3 h-3" />
+            <span>{fileName}</span>
+          </span>
+        ))}
+      </div>
+
+      {remainingText && remainingText.trim() !== 'Analisar arquivo(s) indexado(s).' && (
+        <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
+          {remainingText}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ChatPanel({
   projects,
   activeProject,
@@ -167,17 +205,21 @@ export function ChatPanel({
 
   const hasUserMessages = messages.some((m) => m.role === 'user');
 
-  const filteredMentionFiles = files.filter((f) =>
-    f.name.toLowerCase().includes(mentionFilter)
+  const filteredMentionFiles = files.filter(
+    (f) =>
+      !mentionedFiles.some((m) => m.id === f.id) &&
+      f.name.toLowerCase().includes(mentionFilter)
   );
 
   const renderPlusMenu = () => (
     <AnimatePresence>
       <div
+        key="plus-backdrop"
         className="fixed inset-0 z-40"
         onClick={() => setIsPlusMenuOpen(false)}
       />
       <motion.div
+        key="plus-popover"
         initial={{ opacity: 0, y: 6, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 4, scale: 0.96 }}
@@ -205,27 +247,28 @@ export function ChatPanel({
   const renderMentionDropdown = () => (
     <AnimatePresence>
       <div
+        key="mention-backdrop"
         className="fixed inset-0 z-40"
         onClick={() => setIsMentionMenuOpen(false)}
       />
       <motion.div
+        key="mention-popover"
         initial={{ opacity: 0, y: 6, scale: 0.96 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 4, scale: 0.96 }}
         transition={{ duration: 0.12, ease: 'easeOut' }}
         className="absolute left-0 bottom-full mb-2 w-72 bg-white border border-[#e4e4e7] rounded-xl shadow-xl z-50 py-1 overflow-hidden"
       >
-        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold flex items-center justify-between">
-          <div className="flex items-center gap-1">
-            <Hash className="w-3 h-3 text-[#BA4E20]" />
-            <span>INDEXAR ARQUIVO DO PROJETO</span>
-          </div>
-          <span className="text-[9px] font-normal text-[#a1a1aa]"># ou +</span>
+        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold flex items-center gap-1">
+          <Hash className="w-3 h-3 text-[#BA4E20]" />
+          <span>INDEXAR ARQUIVO DO PROJETO</span>
         </div>
         <div className="max-h-48 overflow-y-auto py-1">
           {filteredMentionFiles.length === 0 ? (
             <div className="px-3 py-2 text-xs text-[#a1a1aa] italic">
-              Nenhum arquivo encontrado no projeto
+              {files.length === 0
+                ? 'Nenhum arquivo no projeto'
+                : 'Todos os arquivos já foram indexados'}
             </div>
           ) : (
             filteredMentionFiles.map((file, idx) => (
@@ -302,10 +345,12 @@ export function ChatPanel({
             {isHeaderDropdownOpen && (
               <>
                 <div
+                  key="header-backdrop"
                   className="fixed inset-0 z-40"
                   onClick={() => setIsHeaderDropdownOpen(false)}
                 />
                 <motion.div
+                  key="header-popover"
                   initial={{ opacity: 0, y: -6, scale: 0.96 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -4, scale: 0.96 }}
@@ -580,9 +625,7 @@ export function ChatPanel({
                     }`}
                   >
                     {isUser ? (
-                      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
-                        {msg.content}
-                      </div>
+                      renderUserMessageContent(msg.content)
                     ) : (
                       <MarkdownRenderer content={msg.content} />
                     )}

@@ -1,4 +1,4 @@
-import { Project, ProjectFile, ChatMessage, QuickActionType } from '@/types';
+import { Project, ProjectFile, ChatMessage, QuickActionType, FloorPlanData } from '@/types';
 import { supabase, getSessionId, clearSessionId } from './supabase';
 
 const STORAGE_BUCKET = 'project-files';
@@ -46,11 +46,12 @@ function isTextLike(mimeType: string): boolean {
   );
 }
 
-function classifyFile(mimeType: string): ProjectFile['type'] {
-  if (mimeType === 'application/pdf') return 'pdf';
-  if (mimeType.startsWith('image/')) return 'image';
-  if (isTextLike(mimeType)) return 'txt';
-  return 'doc';
+function classifyFile(mime: string): ProjectFile['type'] {
+  if (mime === 'application/json') return 'floorplan';
+  if (mime.startsWith('image/')) return 'image';
+  if (mime === 'application/pdf') return 'pdf';
+  if (mime.includes('word') || mime.includes('document')) return 'doc';
+  return 'txt';
 }
 
 /** Resolves the caller's identity: the logged-in user's id, or the anonymous session id. */
@@ -242,6 +243,36 @@ export class StorageService {
       await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
       throw new Error(error.message);
     }
+    return serializeFile(data);
+  }
+
+  static async createFloorPlanFile(
+    projectId: string,
+    fileName: string,
+    floorPlanData: FloorPlanData
+  ): Promise<ProjectFile> {
+    const { userId, sessionId } = await getOwnerKey();
+    const contentText = JSON.stringify(floorPlanData, null, 2);
+    const size = Buffer.byteLength(contentText, 'utf-8');
+    const storagePath = `floorplans/${projectId}/${Date.now()}_${fileName}`;
+
+    const { data, error } = await supabase
+      .from('files')
+      .insert({
+        user_id: userId,
+        session_id: sessionId,
+        project_id: projectId,
+        name: fileName,
+        type: 'floorplan',
+        mime_type: 'application/json',
+        size,
+        storage_path: storagePath,
+        content_text: contentText,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(error.message);
     return serializeFile(data);
   }
 

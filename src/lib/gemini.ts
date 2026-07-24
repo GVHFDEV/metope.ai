@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import { ProjectFile } from '@/types';
+import { ProjectFile, FloorPlanIntentJSON } from '@/types';
+import { solveFloorPlan } from '@/lib/floorplan/solver';
 
 const METOPE_SYSTEM_PROMPT = `Você é o Metope AI, um copiloto de inteligência artificial especializado em arquitetura, engenharia civil e análise de projetos prediais.
 
@@ -19,11 +20,30 @@ REGRAS DE CONDUTA E ESTILO DE COMUNICAÇÃO:
 export interface GenerateChatRequest {
   userPrompt: string;
   files: ProjectFile[];
-  actionType?: 'summary' | 'memorial' | 'layout_analysis' | 'general';
-  previousMessages?: { role: string; content: string }[];
+  actionType?: 'general' | 'summary' | 'memorial' | 'layout_analysis' | 'generate_floorplan';
+  previousMessages?: { role: 'user' | 'assistant'; content: string }[];
 }
 
-function buildPrompt(userPrompt: string, actionType: string): string {
+function buildPrompt(userPrompt: string, actionType?: string): string {
+  if (actionType === 'generate_floorplan' || userPrompt.toLowerCase().includes('planta')) {
+    return `${userPrompt}
+
+[INSTRUÇÃO OBRIGATÓRIA DE GERAÇÃO DE PLANTA]:
+Além do seu parecer técnico descritivo, extraia o programa de necessidades da solicitação e inclua NO FINAL da resposta um bloco JSON com a tag \`\`\`json_intent\`\`\` no seguinte formato:
+\`\`\`json_intent
+{
+  "area_total_m2": 120,
+  "comodos": [
+    { "nome": "Sala de Estar", "area_min_m2": 20, "area_max_m2": 28 },
+    { "nome": "Cozinha Integrada", "area_min_m2": 10, "area_max_m2": 14 },
+    { "nome": "Suíte Master", "area_min_m2": 14, "area_max_m2": 18 },
+    { "nome": "Dormitório 02", "area_min_m2": 10, "area_max_m2": 13 },
+    { "nome": "Banheiro Social", "area_min_m2": 4, "area_max_m2": 5 }
+  ],
+  "restricoes_terreno": { "largura_m": 12, "profundidade_m": 10 }
+}
+\`\`\``;
+  }
   if (actionType === 'summary') {
     return `SOLICITAÇÃO DE ATALHO RÁPIDO: RESUMIR PROJETO.
 Com base nos arquivos e plantas anexados a este projeto, elabore um resumo executivo arquitetônico completo e estruturado contendo:
@@ -104,13 +124,32 @@ export async function callGeminiApi({
       contents: parts,
     });
 
-    return response.text || 'Nenhuma resposta retornada do modelo Gemini.';
+    let rawText = response.text || 'Nenhuma resposta retornada do modelo Gemini.';
+
+    // If prompt asked for floor plan or Gemini returned json_intent, run deterministic solver
+    const jsonIntentMatch = rawText.match(/```json_intent\s*([\s\S]*?)\s*```/);
+    if (jsonIntentMatch) {
+      try {
+        const intent: FloorPlanIntentJSON = JSON.parse(jsonIntentMatch[1]);
+        const floorPlanData = solveFloorPlan(intent, 'Estudo de Layout Arquitetônico');
+        rawText = rawText.replace(/```json_intent[\s\S]*?```/, '').trim();
+        rawText += `\n\n\`\`\`floorplan_data\n${JSON.stringify(floorPlanData, null, 2)}\n\`\`\``;
+      } catch (err) {
+        console.warn('Falha ao processar intenção do Gemini para o solver:', err);
+      }
+    } else if (actionType === 'generate_floorplan' || userPrompt.toLowerCase().includes('planta')) {
+      const defaultIntent: FloorPlanIntentJSON = { area_total_m2: 120, comodos: [] };
+      const floorPlanData = solveFloorPlan(defaultIntent, 'Estudo de Layout Arquitetônico');
+      rawText += `\n\n\`\`\`floorplan_data\n${JSON.stringify(floorPlanData, null, 2)}\n\`\`\``;
+    }
+
+    return rawText;
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
     console.error('Erro ao chamar a API do Gemini:', err);
     return (
       `Ocorreu um erro ao comunicar com a API do Gemini: ${message}.\n\n` +
-      `Modo de contingência ativado:\n\n${fallbackResponse(files, actionType)}`
+      `Modo de contingência ativado:\n\n${fallbackResponse(files, actionType || 'general')}`
     );
   }
 }

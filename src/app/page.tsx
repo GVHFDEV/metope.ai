@@ -4,13 +4,15 @@ import { useState, useEffect, useRef } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
 import { signOut as authSignOut } from '@/lib/auth';
-import { Project, ProjectFile, ChatMessage, QuickActionType } from '@/types';
+import { Project, ProjectFile, ChatMessage, QuickActionType, IDETab, FloorPlanData } from '@/types';
 import { StorageService } from '@/lib/storage';
 import { Sidebar } from '@/components/ide/Sidebar';
 import { ChatPanel } from '@/components/ide/ChatPanel';
 import { FilePreviewModal } from '@/components/ide/FilePreviewModal';
 import { ProjectModal } from '@/components/ide/ProjectModal';
 import { AuthModal } from '@/components/ide/AuthModal';
+import { IDETabBar } from '@/components/ide/IDETabBar';
+import { FloorPlanCanvas } from '@/components/ide/FloorPlanCanvas';
 
 export default function HomePage() {
   const [user, setUser] = useState<User | null>(null);
@@ -187,10 +189,44 @@ export default function HomePage() {
     }
   };
 
+  // IDE Central Workspace Tabs State
+  const [tabs, setTabs] = useState<IDETab[]>([
+    { id: 'chat-tab', title: 'Assistente Chat', type: 'chat' },
+  ]);
+  const [activeTabId, setActiveTabId] = useState<string>('chat-tab');
+
+  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+
+  const handlePreviewFile = (file: ProjectFile) => {
+    if (file.type === 'floorplan' && file.content_text) {
+      try {
+        const floorPlanData: FloorPlanData = JSON.parse(file.content_text);
+        const tabId = `tab-fp-${file.id}`;
+        const newTab: IDETab = {
+          id: tabId,
+          title: file.name.replace(/\.json$/i, ''),
+          type: 'floorplan',
+          fileId: file.id,
+          floorPlanData,
+        };
+        setTabs((prev) => [...prev.filter((t) => t.id !== tabId), newTab]);
+        setActiveTabId(tabId);
+        return;
+      } catch (err) {
+        console.warn('Falha ao abrir planta no canvas:', err);
+      }
+    }
+    setPreviewFile(file);
+  };
+
   // Handle File Deletion
   const handleDeleteFile = async (fileId: string) => {
     await StorageService.deleteFile(fileId);
     setFiles((prev) => prev.filter((f) => f.id !== fileId));
+    setTabs((prev) => prev.filter((t) => t.fileId !== fileId));
+    if (activeTabId === `tab-fp-${fileId}`) {
+      setActiveTabId('chat-tab');
+    }
     if (previewFile?.id === fileId) {
       setPreviewFile(null);
     }
@@ -203,9 +239,6 @@ export default function HomePage() {
   ) => {
     if (isLoadingAi) return;
 
-    // No project yet: auto-create one so the message has somewhere to live,
-    // and pop the rename modal (non-blocking) so the user can name it while
-    // the message is already sending.
     let targetProject = activeProject;
     if (!targetProject) {
       targetProject = await StorageService.createProject('Novo Projeto');
@@ -223,6 +256,7 @@ export default function HomePage() {
       if (actionType === 'summary') displayPrompt = 'Resumir projeto';
       if (actionType === 'memorial') displayPrompt = 'Gerar memorial descritivo';
       if (actionType === 'layout_analysis') displayPrompt = 'Analisar layout';
+      if (actionType === 'generate_floorplan') displayPrompt = 'Gerar planta baixa';
     }
 
     // Optimistically show the user's message while the backend processes it.
@@ -248,6 +282,30 @@ export default function HomePage() {
         userMessage,
         assistantMessage,
       ]);
+
+      // Check if response contains a generated floor plan payload
+      const fpMatch = assistantMessage.content.match(/```floorplan_data\s*([\s\S]*?)\s*```/);
+      if (fpMatch) {
+        try {
+          const floorPlanData: FloorPlanData = JSON.parse(fpMatch[1]);
+          const fileName = `${floorPlanData.title || 'Planta Baixa'}.json`;
+          const savedFile = await StorageService.createFloorPlanFile(targetProject.id, fileName, floorPlanData);
+          setFiles((prev) => [...prev, savedFile]);
+
+          const tabId = `tab-fp-${savedFile.id}`;
+          const newTab: IDETab = {
+            id: tabId,
+            title: floorPlanData.title || 'Planta Baixa',
+            type: 'floorplan',
+            fileId: savedFile.id,
+            floorPlanData,
+          };
+          setTabs((prev) => [...prev.filter((t) => t.id !== tabId), newTab]);
+          setActiveTabId(tabId);
+        } catch (e) {
+          console.warn('Erro ao abrir aba de planta baixa:', e);
+        }
+      }
     } catch (err) {
       console.error('Erro ao processar o chat:', err);
       const errorMsg: ChatMessage = {
@@ -272,7 +330,7 @@ export default function HomePage() {
         files={files}
         onUpload={handleFileUpload}
         onDeleteFile={handleDeleteFile}
-        onPreviewFile={(f) => setPreviewFile(f)}
+        onPreviewFile={handlePreviewFile}
         isUploading={isUploading}
         user={user}
         isAuthLoading={isAuthLoading}
@@ -287,25 +345,42 @@ export default function HomePage() {
           </div>
         )}
 
-        {/* Main Chat Panel */}
-        <ChatPanel
-          projects={projects}
-          activeProject={activeProject}
-          messages={messages}
-          files={files}
-          onSelectProject={handleSelectProject}
-          onOpenNewProjectModal={() => {
-            setProjectToRename(null);
-            setIsProjectModalOpen(true);
+        {/* IDE Central Tab Bar */}
+        <IDETabBar
+          tabs={tabs}
+          activeTabId={activeTabId}
+          onSelectTab={(tabId) => setActiveTabId(tabId)}
+          onCloseTab={(tabId) => {
+            setTabs((prev) => prev.filter((t) => t.id !== tabId));
+            if (activeTabId === tabId) {
+              setActiveTabId('chat-tab');
+            }
           }}
-          onEditProject={(proj) => {
-            setProjectToRename(proj);
-            setIsProjectModalOpen(true);
-          }}
-          onDeleteProject={handleDeleteProject}
-          onSendMessage={handleSendMessage}
-          isLoading={isLoadingAi}
         />
+
+        {/* Main Central View (Active Tab: Chat or Interactive Canvas) */}
+        {activeTab?.type === 'floorplan' && activeTab.floorPlanData ? (
+          <FloorPlanCanvas data={activeTab.floorPlanData} />
+        ) : (
+          <ChatPanel
+            projects={projects}
+            activeProject={activeProject}
+            messages={messages}
+            files={files}
+            onSelectProject={handleSelectProject}
+            onOpenNewProjectModal={() => {
+              setProjectToRename(null);
+              setIsProjectModalOpen(true);
+            }}
+            onEditProject={(proj) => {
+              setProjectToRename(proj);
+              setIsProjectModalOpen(true);
+            }}
+            onDeleteProject={handleDeleteProject}
+            onSendMessage={handleSendMessage}
+            isLoading={isLoadingAi}
+          />
+        )}
       </div>
 
       {/* File Preview Modal */}

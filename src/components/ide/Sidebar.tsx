@@ -12,6 +12,7 @@ import {
   File,
   ChevronsLeft,
   Search,
+  Layers,
 } from 'lucide-react';
 import { AuthPanel } from './AuthPanel';
 import type { User } from '@supabase/supabase-js';
@@ -73,6 +74,7 @@ export function Sidebar({
   const getFileIcon = (file: ProjectFile) => {
     if (file.type === 'image') return <ImageIcon className="w-4 h-4 text-[#BA4E20]" />;
     if (file.type === 'pdf') return <FileText className="w-4 h-4 text-[#BA4E20]" />;
+    if (file.type === 'floorplan') return <Layers className="w-4 h-4 text-[#BA4E20]" />;
     if (file.type === 'doc' || file.type === 'txt')
       return <FileCode className="w-4 h-4 text-[#BA4E20]" />;
     return <File className="w-4 h-4 text-[#71717a]" />;

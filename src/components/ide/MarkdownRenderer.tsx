@@ -5,6 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
+import { Layers } from 'lucide-react';
 
 interface MarkdownRendererProps {
   content: string;
@@ -105,6 +106,21 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
           ),
           hr: () => <hr className="border-[#e4e4e7] my-2.5" />,
           code: ({ children, className }) => {
+            if (className?.includes('language-floorplan_data')) {
+              return (
+                <div className="p-3.5 bg-[#fdf5f2] border border-[#BA4E20]/30 rounded-xl my-3 flex items-center justify-between shadow-2xs">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white border border-[#BA4E20]/20 rounded-lg text-[#BA4E20]">
+                      <Layers className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="font-semibold text-xs text-[#09090b]">Planta Baixa Gerada (Estudo 2D)</div>
+                      <div className="text-[11px] text-[#71717a]">Geometria validada sem sobreposição e com cotas reais</div>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
             const isBlock = className?.includes('language-');
             if (isBlock) {
               return (
