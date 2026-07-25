@@ -19,7 +19,7 @@ interface AuthPanelProps {
 export function AuthPanel({ user, isLoading, onSignIn, onSignOut }: AuthPanelProps) {
   if (isLoading) {
     return (
-      <div className="p-3 border-t border-[#e4e4e7] text-[11px] font-mono text-[#71717a]">
+      <div className="p-3 border-t border-[#e4e4e7] dark:border-[#27272a] text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa]">
         Verificando sessão...
       </div>
     );
@@ -27,10 +27,10 @@ export function AuthPanel({ user, isLoading, onSignIn, onSignOut }: AuthPanelPro
 
   if (!user) {
     return (
-      <div className="p-3 border-t border-[#e4e4e7]">
+      <div className="p-3 border-t border-[#e4e4e7] dark:border-[#27272a]">
         <button
           onClick={onSignIn}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 text-[#09090b] hover:text-[#BA4E20] text-xs font-medium rounded-lg transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-white dark:bg-[#27272a] hover:bg-[#fdf5f2] dark:hover:bg-[#3f3f46] border border-[#e4e4e7] dark:border-[#3f3f46] hover:border-[#BA4E20]/50 text-[#09090b] dark:text-[#f4f4f5] hover:text-[#BA4E20] text-xs font-medium rounded-lg transition-colors cursor-pointer"
         >
           <LogIn className="w-3.5 h-3.5" />
           <span>Entrar</span>
@@ -40,19 +40,19 @@ export function AuthPanel({ user, isLoading, onSignIn, onSignOut }: AuthPanelPro
   }
 
   return (
-    <div className="p-3 border-t border-[#e4e4e7] flex items-center justify-between gap-2">
+    <div className="p-3 border-t border-[#e4e4e7] dark:border-[#27272a] flex items-center justify-between gap-2">
       <div className="flex items-center gap-2 min-w-0">
-        <div className="w-6 h-6 rounded-full bg-[#f4f4f5] border border-[#e4e4e7] flex items-center justify-center flex-shrink-0">
-          <UserIcon className="w-3.5 h-3.5 text-[#71717a]" />
+        <div className="w-6 h-6 rounded-full bg-[#f4f4f5] dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] flex items-center justify-center flex-shrink-0">
+          <UserIcon className="w-3.5 h-3.5 text-[#71717a] dark:text-[#a1a1aa]" />
         </div>
-        <span className="text-xs text-[#09090b] truncate" title={user.email ?? ''}>
+        <span className="text-xs text-[#09090b] dark:text-[#f4f4f5] truncate" title={user.email ?? ''}>
           {user.email}
         </span>
       </div>
       <button
         onClick={onSignOut}
         title="Sair"
-        className="p-1.5 hover:bg-[#e4e4e7] rounded-md text-[#71717a] hover:text-[#BA4E20] transition-colors flex-shrink-0"
+        className="p-1.5 hover:bg-[#e4e4e7] dark:hover:bg-[#27272a] rounded-md text-[#71717a] dark:text-[#a1a1aa] hover:text-[#BA4E20] transition-colors flex-shrink-0 cursor-pointer"
       >
         <LogOut className="w-3.5 h-3.5" />
       </button>

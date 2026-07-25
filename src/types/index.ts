@@ -33,6 +33,7 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   action_type?: 'general' | 'summary' | 'memorial' | 'layout_analysis' | 'generate_floorplan';
+  model_used?: string;
   created_at: string;
 }
 

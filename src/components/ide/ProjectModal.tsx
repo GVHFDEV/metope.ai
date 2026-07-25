@@ -67,19 +67,19 @@ function ProjectModalForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 select-none font-sans text-[#09090b]">
-      <div className="bg-white border border-[#e4e4e7] rounded-xl w-full max-w-md shadow-xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 select-none font-sans text-[#09090b] dark:text-[#f4f4f5]">
+      <div className="bg-white dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] rounded-xl w-full max-w-md shadow-xl overflow-hidden">
         {/* Modal Header */}
-        <div className="h-12 px-4 bg-[#f8f9fa] border-b border-[#e4e4e7] flex items-center justify-between">
+        <div className="h-12 px-4 bg-[#f8f9fa] dark:bg-[#121214] border-b border-[#e4e4e7] dark:border-[#27272a] flex items-center justify-between">
           <div className="flex items-center gap-2">
             <FolderPlus className="w-4 h-4 text-[#BA4E20]" />
-            <span className="font-semibold text-xs text-[#09090b]">
+            <span className="font-semibold text-xs text-[#09090b] dark:text-[#f4f4f5]">
               {isEditing ? 'Nomear Projeto' : 'Novo Projeto Arquitetônico'}
             </span>
           </div>
           <button
             onClick={onClose}
-            className="p-1 hover:bg-[#e4e4e7] text-[#71717a] hover:text-[#09090b] rounded-md transition-colors"
+            className="p-1 hover:bg-[#e4e4e7] dark:hover:bg-[#27272a] text-[#71717a] hover:text-[#09090b] dark:hover:text-[#f4f4f5] rounded-md transition-colors"
           >
             <X className="w-4 h-4" />
           </button>
@@ -88,7 +88,7 @@ function ProjectModalForm({
         {/* Modal Form */}
         <form onSubmit={handleSubmit} className="p-4 space-y-4">
           <div>
-            <label className="block text-[11px] font-mono text-[#71717a] mb-1 uppercase font-semibold">
+            <label className="block text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa] mb-1 uppercase font-semibold">
               NOME DO PROJETO *
             </label>
             <input
@@ -98,18 +98,18 @@ function ProjectModalForm({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="Ex: Edifício Horizonte, Residência Spazio, Loft Jardins"
-              className="w-full bg-[#f8f9fa] border border-[#e4e4e7] focus:border-[#BA4E20] text-xs text-[#09090b] px-3 py-2 rounded-lg focus:outline-none placeholder-[#a1a1aa]"
+              className="w-full bg-[#f8f9fa] dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] focus:border-[#BA4E20] text-xs text-[#09090b] dark:text-[#f4f4f5] px-3 py-2 rounded-lg focus:outline-none placeholder-[#a1a1aa]"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-[#71717a] mb-1 uppercase font-semibold">
+            <label className="block text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa] mb-1 uppercase font-semibold">
               CATEGORIA
             </label>
             <select
               value={category}
               onChange={(e) => setCategory(e.target.value as Project['category'])}
-              className="w-full bg-[#f8f9fa] border border-[#e4e4e7] focus:border-[#BA4E20] text-xs text-[#09090b] px-3 py-2 rounded-lg focus:outline-none"
+              className="w-full bg-[#f8f9fa] dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] focus:border-[#BA4E20] text-xs text-[#09090b] dark:text-[#f4f4f5] px-3 py-2 rounded-lg focus:outline-none"
             >
               <option value="Residencial">Residencial</option>
               <option value="Comercial">Comercial</option>
@@ -120,7 +120,7 @@ function ProjectModalForm({
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-[#71717a] mb-1 uppercase font-semibold">
+            <label className="block text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa] mb-1 uppercase font-semibold">
               DESCRIÇÃO / OBSERVAÇÕES TÉCNICAS (OPCIONAL)
             </label>
             <textarea
@@ -128,16 +128,16 @@ function ProjectModalForm({
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="Detalhes sobre a metragem, terreno, programa de necessidades..."
-              className="w-full bg-[#f8f9fa] border border-[#e4e4e7] focus:border-[#BA4E20] text-xs text-[#09090b] px-3 py-2 rounded-lg focus:outline-none resize-none placeholder-[#a1a1aa]"
+              className="w-full bg-[#f8f9fa] dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] focus:border-[#BA4E20] text-xs text-[#09090b] dark:text-[#f4f4f5] px-3 py-2 rounded-lg focus:outline-none resize-none placeholder-[#a1a1aa]"
             />
           </div>
 
           {/* Form Actions */}
-          <div className="pt-2 border-t border-[#e4e4e7] flex items-center justify-end gap-2">
+          <div className="pt-2 border-t border-[#e4e4e7] dark:border-[#27272a] flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-3.5 py-1.5 bg-white hover:bg-[#f4f4f5] border border-[#e4e4e7] text-[#71717a] text-xs rounded-lg transition-colors font-mono"
+              className="px-3.5 py-1.5 bg-white dark:bg-[#27272a] hover:bg-[#f4f4f5] dark:hover:bg-[#3f3f46] border border-[#e4e4e7] dark:border-[#3f3f46] text-[#71717a] dark:text-[#a1a1aa] text-xs rounded-lg transition-colors font-mono"
             >
               CANCELAR
             </button>

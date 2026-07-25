@@ -321,6 +321,7 @@ export default function HomePage() {
     userPrompt: string,
     actionType: QuickActionType | 'general' = 'general',
     forceSearch: boolean = false,
+    forceThinking: boolean = false,
   ) => {
     if (isLoadingAi) return;
 
@@ -388,6 +389,7 @@ export default function HomePage() {
         actionType,
         files, // Pass shared project files as context (NotebookLM style)
         forceSearch,
+        forceThinking,
       );
       setMessages((prev) => [
         ...prev.filter((m) => m.id !== optimisticUserMsg.id),
@@ -437,8 +439,34 @@ export default function HomePage() {
     }
   };
 
+  // Theme state ('light' | 'dark') with localStorage persistence
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('metope_theme') as 'light' | 'dark';
+    if (savedTheme === 'dark' || savedTheme === 'light') {
+      setTheme(savedTheme);
+      if (savedTheme === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
+      }
+    }
+  }, []);
+
+  const handleToggleTheme = () => {
+    const nextTheme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    localStorage.setItem('metope_theme', nextTheme);
+    if (nextTheme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  };
+
   return (
-    <div className="h-screen max-h-screen w-screen max-w-full bg-white text-[#09090b] flex font-sans overflow-hidden">
+    <div className="h-screen max-h-screen w-screen max-w-full bg-white dark:bg-[#121214] text-[#09090b] dark:text-[#f4f4f5] flex font-sans overflow-hidden transition-colors">
       {/* Left Sidebar (Tree Explorer + Auth Control) */}
       <Sidebar
         projects={projects}
@@ -469,6 +497,8 @@ export default function HomePage() {
         isAuthLoading={isAuthLoading}
         onSignIn={() => setIsAuthModalOpen(true)}
         onSignOut={handleSignOut}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
       />
 
       {/* Main IDE Content Workspace */}

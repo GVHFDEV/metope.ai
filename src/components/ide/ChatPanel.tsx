@@ -22,6 +22,8 @@ import {
   Hash,
   RotateCcw,
   Globe,
+  Cpu,
+  Brain,
 } from 'lucide-react';
 
 interface ChatPanelProps {
@@ -33,7 +35,12 @@ interface ChatPanelProps {
   onOpenNewProjectModal: () => void;
   onEditProject?: (project: Project) => void;
   onDeleteProject?: (projectId: string) => void;
-  onSendMessage: (content: string, actionType?: QuickActionType | 'general', forceSearch?: boolean) => void;
+  onSendMessage: (
+    content: string,
+    actionType?: QuickActionType | 'general',
+    forceSearch?: boolean,
+    forceThinking?: boolean,
+  ) => void;
   isLoading: boolean;
 }
 
@@ -93,6 +100,8 @@ export function ChatPanel({
   
   // Mandatory Web Search toggle state
   const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false);
+  // Advanced Thinking Mode toggle state
+  const [isThinkingEnabled, setIsThinkingEnabled] = useState(false);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
@@ -108,7 +117,7 @@ export function ChatPanel({
     if (actionId === 'summary') defaultPrompt = 'Resumir projeto';
     if (actionId === 'memorial') defaultPrompt = 'Gerar memorial descritivo';
     if (actionId === 'layout_analysis') defaultPrompt = 'Analisar layout';
-    onSendMessage(defaultPrompt, actionId, isWebSearchEnabled);
+    onSendMessage(defaultPrompt, actionId, isWebSearchEnabled, isThinkingEnabled);
   };
 
   const handleTextareaChange = (value: string) => {
@@ -158,7 +167,7 @@ export function ChatPanel({
       finalPrompt = focusHeader + (finalPrompt || 'Analisar arquivo(s) indexado(s).');
     }
 
-    onSendMessage(finalPrompt, 'general', isWebSearchEnabled);
+    onSendMessage(finalPrompt, 'general', isWebSearchEnabled, isThinkingEnabled);
     setInputPrompt('');
     setMentionedFiles([]);
     setIsMentionMenuOpen(false);
@@ -226,9 +235,9 @@ export function ChatPanel({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 4, scale: 0.96 }}
         transition={{ duration: 0.12, ease: 'easeOut' }}
-        className="absolute left-0 bottom-full mb-2 w-56 bg-white border border-[#e4e4e7] rounded-xl shadow-xl z-50 py-1 overflow-hidden"
+        className="absolute left-0 bottom-full mb-2 w-56 bg-white dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] rounded-xl shadow-xl z-50 py-1 overflow-hidden"
       >
-        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold">
+        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] dark:text-[#a1a1aa] border-b border-[#e4e4e7] dark:border-[#27272a] uppercase font-semibold">
           OPÇÕES DE ANEXO
         </div>
         <button
@@ -237,7 +246,7 @@ export function ChatPanel({
             setIsPlusMenuOpen(false);
             setIsMentionMenuOpen(true);
           }}
-          className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 hover:bg-[#fdf5f2] text-[#09090b] transition-colors cursor-pointer"
+          className="w-full text-left px-3 py-2 text-xs flex items-center gap-2.5 hover:bg-[#fdf5f2] dark:hover:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] transition-colors cursor-pointer"
         >
           <Paperclip className="w-4 h-4 text-[#BA4E20]" />
           <span>Indexar Arquivo</span>
@@ -259,9 +268,9 @@ export function ChatPanel({
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 4, scale: 0.96 }}
         transition={{ duration: 0.12, ease: 'easeOut' }}
-        className="absolute left-0 bottom-full mb-2 w-72 bg-white border border-[#e4e4e7] rounded-xl shadow-xl z-50 py-1 overflow-hidden"
+        className="absolute left-0 bottom-full mb-2 w-72 bg-white dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] rounded-xl shadow-xl z-50 py-1 overflow-hidden"
       >
-        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold flex items-center gap-1">
+        <div className="px-3 py-1.5 text-[10px] font-mono text-[#71717a] dark:text-[#a1a1aa] border-b border-[#e4e4e7] dark:border-[#27272a] uppercase font-semibold flex items-center gap-1">
           <Hash className="w-3 h-3 text-[#BA4E20]" />
           <span>INDEXAR ARQUIVO DO PROJETO</span>
         </div>
@@ -278,12 +287,12 @@ export function ChatPanel({
                 key={file.id || `mention-${idx}`}
                 type="button"
                 onClick={() => handleSelectMentionFile(file)}
-                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-[#fdf5f2] text-[#09090b] transition-colors cursor-pointer"
+                className="w-full text-left px-3 py-2 text-xs flex items-center gap-2 hover:bg-[#fdf5f2] dark:hover:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] transition-colors cursor-pointer"
               >
                 <FileText className="w-3.5 h-3.5 text-[#BA4E20] shrink-0" />
                 <div className="truncate flex-1">
                   <div className="truncate font-medium">{file.name}</div>
-                  <div className="text-[9px] font-mono text-[#71717a]">{file.type}</div>
+                  <div className="text-[9px] font-mono text-[#71717a] dark:text-[#a1a1aa]">{file.type}</div>
                 </div>
               </button>
             ))
@@ -294,30 +303,40 @@ export function ChatPanel({
   );
 
   return (
-    <main className="flex-1 flex flex-col h-screen max-h-screen overflow-hidden bg-[#fafafa] text-[#09090b] font-sans">
+    <main className="flex-1 flex flex-col h-screen max-h-screen overflow-hidden bg-[#fafafa] dark:bg-[#121214] text-[#09090b] dark:text-[#f4f4f5] font-sans transition-colors">
       {/* Main Content View */}
       {!hasUserMessages ? (
-        /* EMPTY STATE CANVAS (LIGHT MODE) */
+        /* EMPTY STATE CANVAS */
         <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-5xl mx-auto w-full select-none overflow-y-auto no-scrollbar">
           {/* Centered Heading */}
-          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#09090b] mb-8 text-center">
+          <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#09090b] dark:text-[#f4f4f5] mb-8 text-center">
             Em que posso ajudar com seu projeto?
           </h1>
 
           {/* Centered Elevated Input Box */}
-          <div className="w-full bg-white border border-[#e4e4e7] focus-within:border-[#BA4E20] rounded-xl p-4 shadow-sm focus-within:shadow-md transition-all mb-6 relative">
+          <div className="w-full bg-white dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] focus-within:border-[#BA4E20] dark:focus-within:border-[#BA4E20] rounded-xl p-4 shadow-sm focus-within:shadow-md transition-all mb-6 relative">
             {isPlusMenuOpen && renderPlusMenu()}
             {isMentionMenuOpen && renderMentionDropdown()}
 
-            {/* Input bar layout with + button, web search toggle, inline pills, textarea, and send button */}
-            <div className="flex flex-col gap-2">
+            {/* Input layout: Textarea top-left, mentioned pills middle, action buttons bottom */}
+            <div className="flex flex-col gap-3">
+              {/* Textarea placed top-left */}
+              <textarea
+                rows={3}
+                value={inputPrompt}
+                onChange={(e) => handleTextareaChange(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="Enviar mensagem para Metope AI..."
+                className="w-full bg-transparent text-sm md:text-base text-[#09090b] dark:text-[#f4f4f5] placeholder-[#71717a] dark:placeholder-[#a1a1aa] focus:outline-none resize-none leading-relaxed"
+              />
+
               {/* Inline Mention Pills inside input container */}
               {mentionedFiles.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pb-2 border-b border-[#f4f4f5]">
+                <div className="flex flex-wrap gap-1.5 py-1.5 border-t border-[#f4f4f5] dark:border-[#27272a]">
                   {mentionedFiles.map((file, idx) => (
                     <span
                       key={file.id || `empty-pill-${idx}`}
-                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-xs font-mono font-medium shrink-0"
+                      className="inline-flex items-center gap-1 px-2.5 py-0.5 bg-[#fdf5f2] dark:bg-[#27272a] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-xs font-mono font-medium shrink-0"
                     >
                       <Paperclip className="w-3 h-3" />
                       <span className="max-w-[180px] truncate">{file.name}</span>
@@ -334,52 +353,60 @@ export function ChatPanel({
                 </div>
               )}
 
-              <div className="flex items-start gap-2">
-                {/* + Button with Framer Motion spring rotation & scale */}
-                <motion.button
-                  type="button"
-                  whileHover={{ scale: 1.06 }}
-                  whileTap={{ scale: 0.94 }}
-                  onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
-                  title="Opções de anexo (+)"
-                  className="p-2 bg-[#f8f9fa] hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-lg text-[#BA4E20] transition-colors cursor-pointer shrink-0 mt-0.5"
-                >
-                  <motion.div
-                    animate={{ rotate: isPlusMenuOpen ? 45 : 0 }}
-                    transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+              {/* Bottom Action Row: Buttons on Left, Send on Right */}
+              <div className="flex items-center justify-between pt-2 border-t border-[#f4f4f5] dark:border-[#27272a]">
+                <div className="flex items-center gap-2">
+                  {/* + Button with Framer Motion spring rotation & scale */}
+                  <motion.button
+                    type="button"
+                    whileHover={{ scale: 1.06 }}
+                    whileTap={{ scale: 0.94 }}
+                    onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
+                    title="Opções de anexo (+)"
+                    className="p-2 bg-[#f8f9fa] dark:bg-[#27272a] hover:bg-[#fdf5f2] dark:hover:bg-[#3f3f46] border border-[#e4e4e7] dark:border-[#3f3f46] hover:border-[#BA4E20]/50 rounded-lg text-[#BA4E20] transition-colors cursor-pointer shrink-0"
                   >
-                    <Plus className="w-4 h-4" />
-                  </motion.div>
-                </motion.button>
+                    <motion.div
+                      animate={{ rotate: isPlusMenuOpen ? 45 : 0 }}
+                      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
+                    >
+                      <Plus className="w-4 h-4" />
+                    </motion.div>
+                  </motion.button>
 
-                {/* Web Search Toggle Button (Icon only with hover label) */}
-                <button
-                  type="button"
-                  onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
-                  title="Busca na web"
-                  className={`p-2 rounded-lg border transition-all cursor-pointer shrink-0 mt-0.5 ${
-                    isWebSearchEnabled
-                      ? 'bg-[#fdf5f2] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
-                      : 'bg-[#f8f9fa] border-[#e4e4e7] text-[#71717a] hover:text-[#09090b] hover:border-[#BA4E20]/40'
-                  }`}
-                >
-                  <Globe className={`w-4 h-4 ${isWebSearchEnabled ? 'text-[#BA4E20]' : 'text-[#71717a]'}`} />
-                </button>
+                  {/* Web Search Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
+                    title="Busca na web"
+                    className={`p-2 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                      isWebSearchEnabled
+                        ? 'bg-[#fdf5f2] dark:bg-[#3f2015] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
+                        : 'bg-[#f8f9fa] dark:bg-[#27272a] border-[#e4e4e7] dark:border-[#3f3f46] text-[#71717a] dark:text-[#a1a1aa] hover:text-[#09090b] dark:hover:text-white hover:border-[#BA4E20]/40'
+                    }`}
+                  >
+                    <Globe className={`w-4 h-4 ${isWebSearchEnabled ? 'text-[#BA4E20]' : 'text-[#71717a] dark:text-[#a1a1aa]'}`} />
+                  </button>
 
-                <textarea
-                  rows={3}
-                  value={inputPrompt}
-                  onChange={(e) => handleTextareaChange(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  placeholder="Enviar mensagem para Metope AI..."
-                  className="flex-1 bg-transparent text-sm md:text-base text-[#09090b] placeholder-[#a1a1aa] focus:outline-none resize-none leading-relaxed"
-                />
+                  {/* Advanced Thinking Mode Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={() => setIsThinkingEnabled(!isThinkingEnabled)}
+                    title="Pensamento avançado (Raciocínio profundo Kimi)"
+                    className={`p-2 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                      isThinkingEnabled
+                        ? 'bg-[#fdf5f2] dark:bg-[#3f2015] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
+                        : 'bg-[#f8f9fa] dark:bg-[#27272a] border-[#e4e4e7] dark:border-[#3f3f46] text-[#71717a] dark:text-[#a1a1aa] hover:text-[#09090b] dark:hover:text-white hover:border-[#BA4E20]/40'
+                    }`}
+                  >
+                    <Brain className={`w-4 h-4 ${isThinkingEnabled ? 'text-[#BA4E20]' : 'text-[#71717a] dark:text-[#a1a1aa]'}`} />
+                  </button>
+                </div>
 
                 {/* Fixed Square Send Button */}
                 <button
                   disabled={(!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading}
                   onClick={handleSend}
-                  className={`w-9 h-9 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors flex items-center justify-center shrink-0 mt-0.5 ${
+                  className={`w-9 h-9 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors flex items-center justify-center shrink-0 ${
                     (!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading
                       ? 'opacity-40 cursor-not-allowed'
                       : 'cursor-pointer'
@@ -398,16 +425,16 @@ export function ChatPanel({
                 key={action.id || `qa-${idx}`}
                 disabled={isLoading}
                 onClick={() => handleExecuteAction(action.id)}
-                className="p-3.5 bg-white hover:bg-[#fdf5f2]/40 border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-xl transition-all text-left flex items-start gap-3 shadow-2xs group cursor-pointer"
+                className="p-3.5 bg-white dark:bg-[#18181b] hover:bg-[#fdf5f2]/40 dark:hover:bg-[#27272a] border border-[#e4e4e7] dark:border-[#27272a] hover:border-[#BA4E20]/50 dark:hover:border-[#BA4E20]/50 rounded-xl transition-all text-left flex items-start gap-3 shadow-2xs group cursor-pointer"
               >
-                <div className="p-2 bg-[#fdf5f2] group-hover:bg-white border border-[#BA4E20]/20 rounded-lg flex-shrink-0 transition-colors">
+                <div className="p-2 bg-[#fdf5f2] dark:bg-[#27272a] group-hover:bg-white dark:group-hover:bg-[#3f3f46] border border-[#BA4E20]/20 dark:border-[#BA4E20]/40 rounded-lg flex-shrink-0 transition-colors">
                   {action.icon}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="font-semibold text-xs text-[#09090b] group-hover:text-[#BA4E20] transition-colors truncate">
+                  <div className="font-semibold text-xs text-[#09090b] dark:text-[#f4f4f5] group-hover:text-[#BA4E20] dark:group-hover:text-[#BA4E20] transition-colors truncate">
                     {action.label}
                   </div>
-                  <div className="text-[11px] text-[#71717a] truncate mt-0.5">
+                  <div className="text-[11px] text-[#71717a] dark:text-[#a1a1aa] truncate mt-0.5">
                     {action.description}
                   </div>
                 </div>
@@ -445,15 +472,18 @@ export function ChatPanel({
               };
 
               return (
-                <div
+                <motion.div
                   key={msg.id || `msg-${idx}`}
+                  initial={{ opacity: 0, y: 12, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.22, ease: 'easeOut' }}
                   className={`flex flex-col ${
                     isUser ? 'items-end' : 'items-start'
                   }`}
                 >
                   {/* Sender Header */}
-                  <div className="flex items-center gap-2 mb-1 text-[11px] font-mono text-[#71717a]">
-                    <span className="font-semibold text-[#09090b]">
+                  <div className="flex items-center gap-2 mb-1 text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa]">
+                    <span className="font-semibold text-[#09090b] dark:text-[#f4f4f5]">
                       {isUser ? 'VOCÊ' : 'METOPE AI'}
                     </span>
                     <span>•</span>
@@ -463,16 +493,31 @@ export function ChatPanel({
                         minute: '2-digit',
                       })}
                     </span>
+                    {!isUser && (
+                      <div className="flex items-center gap-1.5 ml-1">
+                        {(msg.model_used || 'moonshotai.kimi-k2.5')
+                          .split(/[\+,]/)
+                          .map((m, mIdx) => (
+                            <span
+                              key={`m-badge-${mIdx}`}
+                              className="px-2 py-0.5 bg-[#fdf5f2] dark:bg-[#27272a] border border-[#BA4E20]/25 dark:border-[#BA4E20]/40 text-[#BA4E20] text-[10px] font-mono rounded-md flex items-center gap-1 font-semibold shadow-2xs"
+                            >
+                              <Cpu className="w-3 h-3 text-[#BA4E20]" />
+                              <span>{m.trim()}</span>
+                            </span>
+                          ))}
+                      </div>
+                    )}
                   </div>
 
                   {/* Message Bubble Card */}
                   <div
                     className={`group relative max-w-4xl p-3.5 px-4 border rounded-xl shadow-2xs ${
                       isUser
-                        ? 'bg-[#f4f4f5] border-[#e4e4e7] text-[#09090b]'
+                        ? 'bg-[#f4f4f5] dark:bg-[#27272a] border-[#e4e4e7] dark:border-[#3f3f46] text-[#09090b] dark:text-[#f4f4f5]'
                         : isErrorMessage
-                        ? 'bg-red-50/50 border-red-200 text-[#09090b]'
-                        : 'bg-white border-[#e4e4e7] text-[#09090b]'
+                        ? 'bg-red-50/50 dark:bg-red-950/20 border-red-200 dark:border-red-900/50 text-[#09090b] dark:text-[#f4f4f5]'
+                        : 'bg-white dark:bg-[#18181b] border-[#e4e4e7] dark:border-[#27272a] text-[#09090b] dark:text-[#f4f4f5]'
                     }`}
                   >
                     {isUser ? (
@@ -483,8 +528,8 @@ export function ChatPanel({
 
                     {/* Retry Button for Error Messages */}
                     {isErrorMessage && (
-                      <div className="mt-3 pt-2 border-t border-red-200 flex items-center justify-between gap-4">
-                        <span className="text-[11px] text-red-600 font-medium">
+                      <div className="mt-3 pt-2 border-t border-red-200 dark:border-red-900/50 flex items-center justify-between gap-4">
+                        <span className="text-[11px] text-red-600 dark:text-red-400 font-medium">
                           A IA não pôde concluir a requisição devido a instabilidade temporária.
                         </span>
                         <button
@@ -502,7 +547,7 @@ export function ChatPanel({
                     {!isUser && !isErrorMessage && (
                       <button
                         onClick={() => handleCopyText(msg.id, msg.content)}
-                        className="absolute top-2 right-2 p-1.5 bg-white border border-[#e4e4e7] hover:border-[#BA4E20] rounded-md text-[#71717a] hover:text-[#BA4E20] opacity-0 group-hover:opacity-100 transition-all"
+                        className="absolute top-2 right-2 p-1.5 bg-white dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] hover:border-[#BA4E20] text-[#71717a] dark:text-[#a1a1aa] hover:text-[#BA4E20] opacity-0 group-hover:opacity-100 transition-all cursor-pointer"
                         title="Copiar texto"
                       >
                         {copiedMsgId === msg.id ? (
@@ -513,15 +558,15 @@ export function ChatPanel({
                       </button>
                     )}
                   </div>
-                </div>
+                </motion.div>
               );
             })}
 
             {/* 3 Pulsing Dots Loading Indicator */}
             {isLoading && (
               <div className="flex flex-col items-start space-y-1.5">
-                <div className="flex items-center gap-2 text-[11px] font-mono text-[#71717a]">
-                  <span className="font-semibold text-[#09090b]">METOPE AI</span>
+                <div className="flex items-center gap-2 text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa]">
+                  <span className="font-semibold text-[#09090b] dark:text-[#f4f4f5]">METOPE AI</span>
                 </div>
                 <div className="px-4 py-3 bg-white border border-[#e4e4e7] rounded-xl flex items-center gap-2 shadow-2xs">
                   <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce [animation-delay:-0.3s]" />
@@ -533,11 +578,11 @@ export function ChatPanel({
           </div>
 
           {/* Bottom Fixed Input Bar for Active Chat */}
-          <div className="p-4 md:px-6 bg-[#fafafa] border-t border-[#e4e4e7] max-w-6xl mx-auto w-full flex-shrink-0 relative">
+          <div className="p-4 md:px-6 bg-[#fafafa] dark:bg-[#121214] border-t border-[#e4e4e7] dark:border-[#27272a] max-w-6xl mx-auto w-full flex-shrink-0 relative">
             {isPlusMenuOpen && renderPlusMenu()}
             {isMentionMenuOpen && renderMentionDropdown()}
 
-            <div className="flex items-center gap-2 bg-white border border-[#e4e4e7] focus-within:border-[#BA4E20] rounded-xl p-2 transition-colors shadow-2xs">
+            <div className="flex items-center gap-2 bg-white dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] focus-within:border-[#BA4E20] rounded-xl p-2 transition-colors shadow-2xs">
               {/* + Button with Framer Motion spring rotation & scale */}
               <motion.button
                 type="button"
@@ -545,7 +590,7 @@ export function ChatPanel({
                 whileTap={{ scale: 0.94 }}
                 onClick={() => setIsPlusMenuOpen(!isPlusMenuOpen)}
                 title="Opções de anexo (+)"
-                className="p-1.5 bg-[#f8f9fa] hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-lg text-[#BA4E20] transition-colors cursor-pointer shrink-0"
+                className="p-1.5 bg-[#f8f9fa] dark:bg-[#27272a] hover:bg-[#fdf5f2] dark:hover:bg-[#3f3f46] border border-[#e4e4e7] dark:border-[#3f3f46] hover:border-[#BA4E20]/50 rounded-lg text-[#BA4E20] transition-colors cursor-pointer shrink-0"
               >
                 <motion.div
                   animate={{ rotate: isPlusMenuOpen ? 45 : 0 }}
@@ -562,18 +607,32 @@ export function ChatPanel({
                 title="Busca na web"
                 className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
                   isWebSearchEnabled
-                    ? 'bg-[#fdf5f2] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
-                    : 'bg-[#f8f9fa] border-[#e4e4e7] text-[#71717a] hover:text-[#09090b] hover:border-[#BA4E20]/40'
+                    ? 'bg-[#fdf5f2] dark:bg-[#3f2015] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
+                    : 'bg-[#f8f9fa] dark:bg-[#27272a] border-[#e4e4e7] dark:border-[#3f3f46] text-[#71717a] dark:text-[#a1a1aa] hover:text-[#09090b] dark:hover:text-white hover:border-[#BA4E20]/40'
                 }`}
               >
-                <Globe className={`w-4 h-4 ${isWebSearchEnabled ? 'text-[#BA4E20]' : 'text-[#71717a]'}`} />
+                <Globe className={`w-4 h-4 ${isWebSearchEnabled ? 'text-[#BA4E20]' : 'text-[#71717a] dark:text-[#a1a1aa]'}`} />
+              </button>
+
+              {/* Advanced Thinking Mode Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsThinkingEnabled(!isThinkingEnabled)}
+                title="Pensamento avançado (Raciocínio profundo Kimi)"
+                className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                  isThinkingEnabled
+                    ? 'bg-[#fdf5f2] dark:bg-[#3f2015] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
+                    : 'bg-[#f8f9fa] dark:bg-[#27272a] border-[#e4e4e7] dark:border-[#3f3f46] text-[#71717a] dark:text-[#a1a1aa] hover:text-[#09090b] dark:hover:text-white hover:border-[#BA4E20]/40'
+                }`}
+              >
+                <Brain className={`w-4 h-4 ${isThinkingEnabled ? 'text-[#BA4E20]' : 'text-[#71717a] dark:text-[#a1a1aa]'}`} />
               </button>
 
               {/* Inline Mention Pills */}
               {mentionedFiles.map((file, idx) => (
                 <span
                   key={file.id || `chat-pill-${idx}`}
-                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium shrink-0"
+                  className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#fdf5f2] dark:bg-[#27272a] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium shrink-0"
                 >
                   <Paperclip className="w-3 h-3" />
                   <span className="max-w-[130px] truncate">{file.name}</span>
@@ -594,7 +653,7 @@ export function ChatPanel({
                 onChange={(e) => handleTextareaChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enviar mensagem para Metope AI..."
-                className="flex-1 bg-transparent text-sm text-[#09090b] placeholder-[#a1a1aa] focus:outline-none resize-none py-1"
+                className="flex-1 bg-transparent text-xs md:text-sm text-[#09090b] dark:text-[#f4f4f5] placeholder-[#71717a] dark:placeholder-[#a1a1aa] focus:outline-none resize-none py-1.5 leading-normal"
               />
 
               <button

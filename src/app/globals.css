@@ -1,6 +1,10 @@
 @import "tailwindcss";
 @import "katex/dist/katex.min.css";
 
+/* Tailwind CSS v4 Manual Dark Mode Variant */
+@custom-variant dark (&:where(.dark, .dark *));
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --font-sans: var(--font-satoshi), sans-serif;
   --background: #ffffff;
@@ -8,6 +12,16 @@
   --accent: #BA4E20;
   --accent-hover: #9c3f19;
   --accent-light: #fdf5f2;
+  color-scheme: light;
+}
+
+html.dark {
+  --background: #121214;
+  --foreground: #f4f4f5;
+  --accent-light: #27272a;
+  color-scheme: dark;
+  background-color: #121214;
+  color: #f4f4f5;
 }
 
 @theme inline {
@@ -21,13 +35,20 @@
   scrollbar-color: #e4e4e7 transparent;
 }
 
-body {
-  background: var(--background);
+html.dark * {
+  scrollbar-color: #27272a transparent;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background-color: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
 }
 
-/* Custom sleek scrollbar styling (removes native arrows & bulky scroll tracks) */
+/* Custom sleek scrollbar styling */
 ::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -48,6 +69,10 @@ body {
   border-radius: 9999px;
 }
 
+html.dark ::-webkit-scrollbar-thumb {
+  background: #27272a;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   background: #BA4E20;
 }
@@ -62,7 +87,7 @@ body {
   scrollbar-width: none;
 }
 
-/* KaTeX math font protection - prevents global * font-family from distorting math fraction metrics */
+/* KaTeX math font protection */
 .katex {
   font-size: 1.08em;
   line-height: 1.25;
@@ -87,6 +112,12 @@ body {
   border: 1px solid #e4e4e7;
   border-radius: 0.625rem;
   overflow-x: auto;
+}
+
+html.dark .katex-display {
+  background-color: #18181b;
+  border-color: #27272a;
+  color: #f4f4f5;
 }
 
 .katex-display > .katex {

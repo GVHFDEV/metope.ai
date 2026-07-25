@@ -1,5 +1,6 @@
 import { Project, ProjectFile, ChatMessage, QuickActionType, FloorPlanData, Conversation } from '@/types';
 import { supabase, getSessionId, clearSessionId } from './supabase';
+import { callGeminiApi } from './gemini';
 
 const STORAGE_BUCKET = 'project-files';
 
@@ -111,10 +112,11 @@ async function serializeFile(row: FileRow): Promise<ProjectFile> {
 type MessageRow = {
   id: string;
   conversation_id?: string | null;
-  project_id?: string;
+  project_id: string;
   role: string;
   content: string;
   action_type: string;
+  model_used?: string | null;
   created_at: string;
 };
 
@@ -126,6 +128,7 @@ function serializeMessage(row: MessageRow): ChatMessage {
     role: row.role as ChatMessage['role'],
     content: row.content,
     action_type: row.action_type as ChatMessage['action_type'],
+    model_used: row.model_used || undefined,
     created_at: row.created_at,
   };
 }
@@ -382,28 +385,48 @@ export class StorageService {
     role: 'user' | 'assistant',
     content: string,
     actionType: ChatMessage['action_type'] = 'general',
+    modelUsed?: string,
   ): Promise<ChatMessage> {
     const { userId, sessionId } = await getOwnerKey();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertPayload: any = {
+      user_id: userId,
+      session_id: sessionId,
+      project_id: projectId,
+      conversation_id: conversationId || null,
+      role,
+      content,
+      action_type: actionType,
+    };
+    if (modelUsed) {
+      insertPayload.model_used = modelUsed;
+    }
+
     const { data, error } = await supabase
       .from('messages')
-      .insert({
-        user_id: userId,
-        session_id: sessionId,
-        project_id: projectId,
-        conversation_id: conversationId || null,
-        role,
-        content,
-        action_type: actionType,
-      })
+      .insert(insertPayload)
       .select()
       .single();
-    if (error) throw new Error(error.message);
-    return serializeMessage(data);
+    if (error) {
+      // Fallback if DB table messages does not have model_used column yet
+      delete insertPayload.model_used;
+      const fallback = await supabase
+        .from('messages')
+        .insert(insertPayload)
+        .select()
+        .single();
+      if (fallback.error) throw new Error(fallback.error.message);
+      const msg = serializeMessage(fallback.data as MessageRow);
+      msg.model_used = modelUsed;
+      return msg;
+    }
+    const msg = serializeMessage(data as MessageRow);
+    if (modelUsed) msg.model_used = modelUsed;
+    return msg;
   }
 
   /**
-   * Persists the user message, calls the Next.js API route (server-side
-   * Gemini call, key never touches the client), then persists the reply.
+   * Persists the user message, calls the Supabase Edge Function ai-chat, then persists the reply.
    */
   static async sendChat(
     projectId: string,
@@ -412,32 +435,30 @@ export class StorageService {
     actionType: QuickActionType | 'general' = 'general',
     files: ProjectFile[] = [],
     forceSearch: boolean = false,
+    forceThinking: boolean = false,
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage }> {
     const userMessage = await this.addMessage(projectId, conversationId, 'user', userPrompt, actionType);
 
     const previousMessages = await this.getConversationMessages(conversationId);
-    const res = await fetch('/api/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+    
+    let aiText: string;
+    let modelUsed: string | undefined = undefined;
+    try {
+      const res = await callGeminiApi({
         userPrompt,
-        files, // Pass shared project files as context (NotebookLM style)
+        files,
         actionType,
         previousMessages: previousMessages.map((m) => ({ role: m.role, content: m.content })),
         forceSearch,
-      }),
-    });
-
-    let aiText: string;
-    if (res.ok) {
-      const data = await res.json();
-      aiText = data.response || 'Não foi possível gerar parecer técnico no momento.';
-    } else {
-      const errData = await res.json().catch(() => ({}));
-      aiText = errData.error || 'O serviço de IA (Gemini) está temporariamente indisponível ou sobrecarregado.';
+        forceThinking,
+      });
+      aiText = res.response;
+      modelUsed = res.modelUsed;
+    } catch (err) {
+      aiText = err instanceof Error ? err.message : 'O serviço de IA (Supabase Edge Function) está indisponível.';
     }
 
-    const assistantMessage = await this.addMessage(projectId, conversationId, 'assistant', aiText, actionType);
+    const assistantMessage = await this.addMessage(projectId, conversationId, 'assistant', aiText, actionType, modelUsed);
     return { userMessage, assistantMessage };
   }
 

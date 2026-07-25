@@ -123,28 +123,28 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 font-sans text-[#09090b]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 font-sans text-[#09090b] dark:text-[#f4f4f5]">
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         exit={{ opacity: 0, scale: 0.95 }}
         transition={{ duration: 0.15, ease: 'easeOut' }}
-        className="bg-white border border-[#e4e4e7] rounded-2xl w-full max-w-[380px] shadow-2xl overflow-hidden"
+        className="bg-white dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] rounded-2xl w-full max-w-[380px] shadow-2xl overflow-hidden"
       >
         
         {/* Header Section */}
         <div className="p-6 pb-2 relative text-center">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 hover:bg-[#f4f4f5] text-[#71717a] hover:text-[#09090b] rounded-lg transition-colors cursor-pointer"
+            className="absolute top-4 right-4 p-1.5 hover:bg-[#f4f4f5] dark:hover:bg-[#27272a] text-[#71717a] hover:text-[#09090b] dark:hover:text-[#f4f4f5] rounded-lg transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
           
-          <h2 className="text-xl font-bold tracking-tight text-[#09090b]">
+          <h2 className="text-xl font-bold tracking-tight text-[#09090b] dark:text-[#f4f4f5]">
             {flow === 'signIn' ? 'Entrar na sua conta' : 'Criar uma conta'}
           </h2>
-          <p className="text-xs text-[#71717a] mt-1">
+          <p className="text-xs text-[#71717a] dark:text-[#a1a1aa] mt-1">
             {flow === 'signIn'
               ? 'Insira seus dados de acesso para continuar.'
               : 'Preencha suas informações para se cadastrar.'}
@@ -158,7 +158,7 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
           <button
             type="button"
             onClick={handleGoogleClick}
-            className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-white hover:bg-[#f8f9fa] border border-[#e4e4e7] hover:border-[#d4d4d8] text-xs font-semibold text-[#09090b] rounded-xl transition-all shadow-2xs cursor-pointer"
+            className="w-full flex items-center justify-center gap-2.5 px-4 py-2.5 bg-white dark:bg-[#27272a] hover:bg-[#f8f9fa] dark:hover:bg-[#3f3f46] border border-[#e4e4e7] dark:border-[#3f3f46] hover:border-[#d4d4d8] text-xs font-semibold text-[#09090b] dark:text-[#f4f4f5] rounded-xl transition-all shadow-2xs cursor-pointer"
           >
             <GoogleIcon />
             <span>Continuar com Google</span>
@@ -166,8 +166,8 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
 
           {/* Divider */}
           <div className="relative flex items-center justify-center my-3">
-            <div className="border-t border-[#e4e4e7] w-full" />
-            <span className="bg-white px-3 text-[11px] font-mono uppercase text-[#a1a1aa] absolute">
+            <div className="border-t border-[#e4e4e7] dark:border-[#27272a] w-full" />
+            <span className="bg-white dark:bg-[#18181b] px-3 text-[11px] font-mono uppercase text-[#a1a1aa] absolute">
               ou
             </span>
           </div>
@@ -183,7 +183,7 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Nome de usuário"
-                  className="w-full bg-white border border-[#e4e4e7] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
+                  className="w-full bg-white dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] dark:text-[#f4f4f5] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
                 />
               </div>
             )}
@@ -197,7 +197,7 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Seu e-mail"
-                className="w-full bg-white border border-[#e4e4e7] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
+                className="w-full bg-white dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] dark:text-[#f4f4f5] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
               />
             </div>
 
@@ -210,7 +210,7 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder={flow === 'signUp' ? 'Criar senha (mín. 8 caracteres)' : 'Sua senha'}
-                className="w-full bg-white border border-[#e4e4e7] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
+                className="w-full bg-white dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] dark:text-[#f4f4f5] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
               />
             </div>
 
@@ -224,14 +224,14 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                   placeholder="Confirmar senha"
-                  className="w-full bg-white border border-[#e4e4e7] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
+                  className="w-full bg-white dark:bg-[#27272a] border border-[#e4e4e7] dark:border-[#3f3f46] focus:border-[#BA4E20] focus:ring-1 focus:ring-[#BA4E20] text-xs text-[#09090b] dark:text-[#f4f4f5] px-3.5 py-2.5 rounded-xl focus:outline-none placeholder-[#a1a1aa] transition-colors"
                 />
               </div>
             )}
 
             {/* Error Feedback Banner */}
             {error && (
-              <div className="text-[11px] text-[#BA4E20] bg-[#fdf5f2] border border-[#BA4E20]/30 rounded-lg p-2.5 text-center font-medium">
+              <div className="text-[11px] text-[#BA4E20] bg-[#fdf5f2] dark:bg-[#BA4E20]/10 border border-[#BA4E20]/30 rounded-lg p-2.5 text-center font-medium">
                 {error}
               </div>
             )}
@@ -250,7 +250,7 @@ export function AuthModal({ isOpen, onClose, onSignedUp }: AuthModalProps) {
           </form>
 
           {/* Toggle Flow Switch Link at Bottom */}
-          <div className="text-center pt-2 text-xs text-[#71717a]">
+          <div className="text-center pt-2 text-xs text-[#71717a] dark:text-[#a1a1aa]">
             {flow === 'signIn' ? (
               <span>
                 Não tem uma conta?{' '}
