@@ -11,6 +11,9 @@ import { ChatPanel } from '@/components/ide/ChatPanel';
 import { FilePreviewModal } from '@/components/ide/FilePreviewModal';
 import { ProjectModal } from '@/components/ide/ProjectModal';
 import { AuthModal } from '@/components/ide/AuthModal';
+import { SettingsModal } from '@/components/ide/SettingsModal';
+import { OnboardingModal } from '@/components/ide/OnboardingModal';
+import { ToastNotification, ToastMessage } from '@/components/ide/ToastNotification';
 import { FloorPlanCanvas } from '@/components/ide/FloorPlanCanvas';
 import { ProjectFilesManager } from '@/components/ide/ProjectFilesManager';
 
@@ -60,8 +63,44 @@ export default function HomePage() {
   const [projectToRename, setProjectToRename] = useState<Project | null>(null);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
+  const [isOnboardingModalOpen, setIsOnboardingModalOpen] = useState(false);
+  const hasCheckedOnboardingRef = useRef(false);
+
+  // Auto-trigger Onboarding Modal on first session if not completed and not skipped
+  useEffect(() => {
+    if (user && !hasCheckedOnboardingRef.current) {
+      hasCheckedOnboardingRef.current = true;
+      const meta = user.user_metadata || {};
+      if (!meta.onboarding_completo && !meta.onboarding_pulado) {
+        setIsOnboardingModalOpen(true);
+      }
+    }
+  }, [user]);
   const [migrationNotice, setMigrationNotice] = useState<string | null>(null);
   const pendingMigrationRef = useRef(false);
+
+  // Top-Right Toast Notifications State
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+
+  const handleShowToast = (
+    title: string,
+    message?: string,
+    type: 'success' | 'error' | 'info' = 'success'
+  ) => {
+    const newToast: ToastMessage = {
+      id: `toast-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      title,
+      message,
+      type,
+      durationMs: 2000,
+    };
+    setToasts((prev) => [...prev, newToast]);
+  };
+
+  const handleDismissToast = (id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+  };
 
   // Load Projects and initial state settling
   useEffect(() => {
@@ -125,6 +164,7 @@ export default function HomePage() {
 
   const handleSignedUp = () => {
     pendingMigrationRef.current = true;
+    setIsOnboardingModalOpen(true);
   };
 
   const handleSignOut = async () => {
@@ -136,15 +176,18 @@ export default function HomePage() {
     setActiveProject(project);
     setIsProjectFilesViewOpen(false);
 
-    const projectFiles = await StorageService.getProjectFiles(project.id);
+    const [projectFiles, projectConvs] = await Promise.all([
+      StorageService.getProjectFiles(project.id),
+      StorageService.getConversations(project.id),
+    ]);
     setFiles(projectFiles);
-
-    const projectConvs = await StorageService.getConversations(project.id);
     setConversations(projectConvs);
 
     if (projectConvs.length > 0) {
-      setActiveConversationId(projectConvs[0].id);
-      const msgs = await StorageService.getConversationMessages(projectConvs[0].id);
+      const existingConv = projectConvs.find((c) => c.id === activeConversationId);
+      const targetConvId = existingConv ? existingConv.id : projectConvs[0].id;
+      setActiveConversationId(targetConvId);
+      const msgs = await StorageService.getConversationMessages(targetConvId);
       setMessages(msgs);
     } else {
       const newConv = await StorageService.createConversation(project.id, 'Layout Inicial');
@@ -158,6 +201,21 @@ export default function HomePage() {
   const handleSelectConversation = async (conversation: Conversation) => {
     setActiveConversationId(conversation.id);
     setIsProjectFilesViewOpen(false);
+
+    // Sync active project and files if switching conversation across projects
+    if (!activeProject || activeProject.id !== conversation.project_id) {
+      const parentProj = projects.find((p) => p.id === conversation.project_id);
+      if (parentProj) {
+        setActiveProject(parentProj);
+        const [projectFiles, projectConvs] = await Promise.all([
+          StorageService.getProjectFiles(parentProj.id),
+          StorageService.getConversations(parentProj.id),
+        ]);
+        setFiles(projectFiles);
+        setConversations(projectConvs);
+      }
+    }
+
     const msgs = await StorageService.getConversationMessages(conversation.id);
     setMessages(msgs);
   };
@@ -182,8 +240,16 @@ export default function HomePage() {
   };
 
   // Handle Project File Manager View Trigger
-  const handleOpenProjectFiles = (project: Project) => {
-    setActiveProject(project);
+  const handleOpenProjectFiles = async (project: Project) => {
+    if (!activeProject || activeProject.id !== project.id) {
+      setActiveProject(project);
+      const [projectFiles, projectConvs] = await Promise.all([
+        StorageService.getProjectFiles(project.id),
+        StorageService.getConversations(project.id),
+      ]);
+      setFiles(projectFiles);
+      setConversations(projectConvs);
+    }
     setIsProjectFilesViewOpen(true);
   };
 
@@ -497,6 +563,9 @@ export default function HomePage() {
         isAuthLoading={isAuthLoading}
         onSignIn={() => setIsAuthModalOpen(true)}
         onSignOut={handleSignOut}
+        onOpenSettings={() => setIsSettingsModalOpen(true)}
+        onOpenOnboarding={() => setIsOnboardingModalOpen(true)}
+        onUserUpdated={(updatedUser) => setUser(updatedUser)}
         theme={theme}
         onToggleTheme={handleToggleTheme}
       />
@@ -591,6 +660,28 @@ export default function HomePage() {
         onClose={() => setIsAuthModalOpen(false)}
         onSignedUp={handleSignedUp}
       />
+
+      {/* User Settings Modal */}
+      <SettingsModal
+        isOpen={isSettingsModalOpen}
+        onClose={() => setIsSettingsModalOpen(false)}
+        user={user}
+        onUserUpdated={(updatedUser) => setUser(updatedUser)}
+        onShowToast={handleShowToast}
+        onOpenOnboarding={() => setIsOnboardingModalOpen(true)}
+      />
+
+      {/* User Onboarding Modal */}
+      <OnboardingModal
+        isOpen={isOnboardingModalOpen}
+        onClose={() => setIsOnboardingModalOpen(false)}
+        user={user}
+        onUserUpdated={(updatedUser) => setUser(updatedUser)}
+        onShowToast={handleShowToast}
+      />
+
+      {/* Global Top-Right Toast Notifications */}
+      <ToastNotification toasts={toasts} onDismiss={handleDismissToast} />
     </div>
   );
 }

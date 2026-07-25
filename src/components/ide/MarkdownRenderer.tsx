@@ -180,27 +180,27 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             <tr className="hover:bg-[#f8f9fa] dark:hover:bg-[#27272a]/70 transition-colors">{children}</tr>
           ),
           th: ({ children }) => (
-            <th className="px-3 py-2 font-semibold text-[#09090b] border-r last:border-r-0 border-[#e4e4e7]">
+            <th className="px-3 py-2 font-semibold text-[#09090b] dark:text-[#f4f4f5] border-r last:border-r-0 border-[#e4e4e7] dark:border-[#27272a]">
               {children}
             </th>
           ),
           td: ({ children }) => (
-            <td className="px-3 py-2 border-r last:border-r-0 border-[#e4e4e7] text-[#27272a]">
+            <td className="px-3 py-2 border-r last:border-r-0 border-[#e4e4e7] dark:border-[#27272a] text-[#27272a] dark:text-[#e4e4e7]">
               {children}
             </td>
           ),
-          hr: () => <hr className="border-[#e4e4e7] my-2.5" />,
+          hr: () => <hr className="border-[#e4e4e7] dark:border-[#27272a] my-2.5" />,
           code: ({ children, className }) => {
             if (className?.includes('language-floorplan_data')) {
               return (
-                <div className="p-3.5 bg-[#fdf5f2] border border-[#BA4E20]/30 rounded-xl my-3 flex items-center justify-between shadow-2xs">
+                <div className="p-3.5 bg-[#fdf5f2] dark:bg-[#27272a] border border-[#BA4E20]/30 dark:border-[#BA4E20]/50 rounded-xl my-3 flex items-center justify-between shadow-2xs">
                   <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white border border-[#BA4E20]/20 rounded-lg text-[#BA4E20]">
+                    <div className="p-2 bg-white dark:bg-[#18181b] border border-[#BA4E20]/20 rounded-lg text-[#BA4E20]">
                       <Layers className="w-4 h-4" />
                     </div>
                     <div>
-                      <div className="font-semibold text-xs text-[#09090b]">Planta Baixa Gerada (Estudo 2D)</div>
-                      <div className="text-[11px] text-[#71717a]">Geometria validada sem sobreposição e com cotas reais</div>
+                      <div className="font-semibold text-xs text-[#09090b] dark:text-[#f4f4f5]">Planta Baixa Gerada (Estudo 2D)</div>
+                      <div className="text-[11px] text-[#71717a] dark:text-[#a1a1aa]">Geometria validada sem sobreposição e com cotas reais</div>
                     </div>
                   </div>
                 </div>
@@ -209,13 +209,13 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
             const isBlock = className?.includes('language-');
             if (isBlock) {
               return (
-                <pre className="bg-[#18181b] text-[#f4f4f5] p-3 rounded-lg overflow-x-auto text-[11px] font-mono my-2">
+                <pre className="bg-[#18181b] dark:bg-[#0c0c0e] text-[#f4f4f5] p-3 rounded-lg overflow-x-auto text-[11px] font-mono my-2 border border-[#27272a]">
                   <code>{children}</code>
                 </pre>
               );
             }
             return (
-              <code className="bg-[#f4f4f5] text-[#09090b] px-1.5 py-0.5 rounded text-[11px] font-mono border border-[#e4e4e7]">
+              <code className="bg-[#f4f4f5] dark:bg-[#27272a] text-[#09090b] dark:text-[#f4f4f5] px-1.5 py-0.5 rounded text-[11px] font-mono border border-[#e4e4e7] dark:border-[#3f3f46]">
                 {children}
               </code>
             );

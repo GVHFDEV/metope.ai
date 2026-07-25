@@ -22,10 +22,13 @@ import {
   MoreVertical,
   Sun,
   Moon,
+  Sparkles,
+  X,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AuthPanel } from './AuthPanel';
 import type { User } from '@supabase/supabase-js';
+import { updateUserOnboardingData } from '@/lib/auth';
 
 interface SidebarProps {
   projects: Project[];
@@ -50,6 +53,9 @@ interface SidebarProps {
   isAuthLoading: boolean;
   onSignIn: () => void;
   onSignOut: () => void;
+  onOpenSettings: () => void;
+  onOpenOnboarding?: () => void;
+  onUserUpdated?: (updatedUser: User) => void;
   theme?: 'light' | 'dark';
   onToggleTheme?: () => void;
 }
@@ -77,10 +83,26 @@ export function Sidebar({
   isAuthLoading,
   onSignIn,
   onSignOut,
+  onOpenSettings,
+  onOpenOnboarding,
+  onUserUpdated,
   theme = 'light',
   onToggleTheme,
 }: SidebarProps) {
   const [expandedProjectIds, setExpandedProjectIds] = useState<Record<string, boolean>>({});
+
+  const handleDismissOnboardingCard = async () => {
+    try {
+      const { user: updatedUser } = await updateUserOnboardingData({
+        onboarding_card_dismissed: true,
+      });
+      if (updatedUser) {
+        onUserUpdated?.(updatedUser);
+      }
+    } catch (_err) {
+      // Ignore background error
+    }
+  };
   const [editingConvId, setEditingConvId] = useState<string | null>(null);
   const [editingConvTitle, setEditingConvTitle] = useState('');
   
@@ -316,7 +338,6 @@ export function Sidebar({
                         <div
                           key={conv.id}
                           onClick={() => {
-                            onSelectProject(proj);
                             onSelectConversation(conv);
                           }}
                           className={`group relative px-2 py-1 rounded-md text-xs flex items-center justify-between transition-colors cursor-pointer ${
@@ -400,7 +421,6 @@ export function Sidebar({
                     {/* Shared Project Files Node */}
                     <div
                       onClick={() => {
-                        onSelectProject(proj);
                         onOpenProjectFiles(proj);
                       }}
                       className="group px-2 py-1 rounded-md text-xs flex items-center gap-2 text-[#71717a] dark:text-[#a1a1aa] hover:text-[#09090b] dark:hover:text-[#f4f4f5] hover:bg-[#e4e4e7]/40 dark:hover:bg-[#27272a]/50 cursor-pointer font-mono text-[11px]"
@@ -419,12 +439,44 @@ export function Sidebar({
         )}
       </div>
 
+      {/* Onboarding Reminder Discrete Sidebar Card */}
+      {user &&
+        !user.user_metadata?.onboarding_completo &&
+        user.user_metadata?.onboarding_pulado &&
+        !user.user_metadata?.onboarding_card_dismissed && (
+          <div className="mx-3 mb-2 p-2.5 bg-[#fafafa] dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] rounded-xl text-xs relative group shadow-2xs">
+            <button
+              onClick={handleDismissOnboardingCard}
+              className="absolute top-2 right-2 p-0.5 text-[#a1a1aa] hover:text-[#09090b] dark:hover:text-white rounded-md hover:bg-[#e4e4e7] dark:hover:bg-[#27272a] transition-colors cursor-pointer"
+              title="Dispensar aviso"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+            <div className="flex items-center gap-1.5 text-[#BA4E20] font-mono text-[11px] font-semibold mb-0.5">
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>Perfil Incompleto</span>
+            </div>
+            <p className="text-[11px] text-[#71717a] dark:text-[#a1a1aa] leading-snug mb-2 pr-4">
+              Personalize sua experiência no Metope AI.
+            </p>
+            {onOpenOnboarding && (
+              <button
+                onClick={onOpenOnboarding}
+                className="w-full py-1.5 bg-[#BA4E20] hover:bg-[#9c3f19] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow-2xs"
+              >
+                Completar perfil
+              </button>
+            )}
+          </div>
+        )}
+
       {/* Account / Auth Bar Fixed at Bottom */}
       <AuthPanel
         user={user}
         isLoading={isAuthLoading}
         onSignIn={onSignIn}
         onSignOut={onSignOut}
+        onOpenSettings={onOpenSettings}
       />
     </aside>
   );

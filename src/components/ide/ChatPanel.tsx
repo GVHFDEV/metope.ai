@@ -49,7 +49,7 @@ function renderUserMessageContent(content: string) {
 
   if (!match) {
     return (
-      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
+      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] dark:text-[#f4f4f5] whitespace-pre-wrap">
         {content}
       </div>
     );
@@ -61,18 +61,18 @@ function renderUserMessageContent(content: string) {
   return (
     <div className="space-y-2">
       {/* Render colored pills/tags for sent indexed files */}
-      <div className="flex flex-wrap gap-1.5 pb-1.5 border-b border-[#e4e4e7]">
+      <div className="flex flex-wrap gap-1.5 pb-1.5 border-b border-[#e4e4e7] dark:border-[#3f3f46]">
         {fileNames.map((fileName, idx) => (
           <span
             key={idx}
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium"
+            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#fdf5f2] dark:bg-[#3f2015] border border-[#BA4E20]/30 dark:border-[#BA4E20]/60 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium"
           >
             <Paperclip className="w-3 h-3" />
             <span className="max-w-[180px] truncate">{fileName}</span>
           </span>
         ))}
       </div>
-      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
+      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] dark:text-[#f4f4f5] whitespace-pre-wrap">
         {remainingText}
       </div>
     </div>
@@ -495,7 +495,7 @@ export function ChatPanel({
                     </span>
                     {!isUser && (
                       <div className="flex items-center gap-1.5 ml-1">
-                        {(msg.model_used || 'moonshotai.kimi-k2.5')
+                        {(msg.model_used || 'moonshotai.kimi-k2-thinking')
                           .split(/[\+,]/)
                           .map((m, mIdx) => (
                             <span
