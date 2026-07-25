@@ -64,6 +64,44 @@ export type Database = {
           },
         ]
       }
+      conversations: {
+        Row: {
+          created_at: string
+          id: string
+          project_id: string
+          session_id: string | null
+          title: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          project_id: string
+          session_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          project_id?: string
+          session_id?: string | null
+          title?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "conversations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       messages: {
         Row: {
           action_type: string
@@ -71,6 +109,7 @@ export type Database = {
           created_at: string
           id: string
           project_id: string
+          conversation_id: string | null
           role: string
           session_id: string | null
           user_id: string | null
@@ -81,6 +120,7 @@ export type Database = {
           created_at?: string
           id?: string
           project_id: string
+          conversation_id?: string | null
           role: string
           session_id?: string | null
           user_id?: string | null
@@ -91,6 +131,7 @@ export type Database = {
           created_at?: string
           id?: string
           project_id?: string
+          conversation_id?: string | null
           role?: string
           session_id?: string | null
           user_id?: string | null
@@ -101,6 +142,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "messages_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
             referencedColumns: ["id"]
           },
         ]

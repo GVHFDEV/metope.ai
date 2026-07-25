@@ -20,6 +20,8 @@ import {
   Trash2,
   X,
   Hash,
+  RotateCcw,
+  Globe,
 } from 'lucide-react';
 
 interface ChatPanelProps {
@@ -31,7 +33,7 @@ interface ChatPanelProps {
   onOpenNewProjectModal: () => void;
   onEditProject?: (project: Project) => void;
   onDeleteProject?: (projectId: string) => void;
-  onSendMessage: (content: string, actionType?: QuickActionType | 'general') => void;
+  onSendMessage: (content: string, actionType?: QuickActionType | 'general', forceSearch?: boolean) => void;
   isLoading: boolean;
 }
 
@@ -59,16 +61,13 @@ function renderUserMessageContent(content: string) {
             className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium"
           >
             <Paperclip className="w-3 h-3" />
-            <span>{fileName}</span>
+            <span className="max-w-[180px] truncate">{fileName}</span>
           </span>
         ))}
       </div>
-
-      {remainingText && remainingText.trim() !== 'Analisar arquivo(s) indexado(s).' && (
-        <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
-          {remainingText}
-        </div>
-      )}
+      <div className="text-xs md:text-[13px] leading-relaxed text-[#09090b] whitespace-pre-wrap">
+        {remainingText}
+      </div>
     </div>
   );
 }
@@ -87,43 +86,46 @@ export function ChatPanel({
 }: ChatPanelProps) {
   const [inputPrompt, setInputPrompt] = useState('');
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
-  const [isHeaderDropdownOpen, setIsHeaderDropdownOpen] = useState(false);
-  const [deletingProjectId, setDeletingProjectId] = useState<string | null>(null);
-  
-  // File Mention / Indexing State
-  const [mentionedFiles, setMentionedFiles] = useState<ProjectFile[]>([]);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [isMentionMenuOpen, setIsMentionMenuOpen] = useState(false);
   const [mentionFilter, setMentionFilter] = useState('');
+  const [mentionedFiles, setMentionedFiles] = useState<ProjectFile[]>([]);
+  
+  // Mandatory Web Search toggle state
+  const [isWebSearchEnabled, setIsWebSearchEnabled] = useState(false);
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
     if (chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
-  };
-
-  useEffect(() => {
-    scrollToBottom();
   }, [messages, isLoading]);
 
-  const handleTextareaChange = (text: string) => {
-    setInputPrompt(text);
+  const handleExecuteAction = (actionId: QuickActionType) => {
+    let defaultPrompt = '';
+    if (actionId === 'summary') defaultPrompt = 'Resumir projeto';
+    if (actionId === 'memorial') defaultPrompt = 'Gerar memorial descritivo';
+    if (actionId === 'layout_analysis') defaultPrompt = 'Analisar layout';
+    onSendMessage(defaultPrompt, actionId, isWebSearchEnabled);
+  };
 
-    // Check if user typed '#'
-    const lastHashIndex = text.lastIndexOf('#');
+  const handleTextareaChange = (value: string) => {
+    setInputPrompt(value);
+
+    // Detect '#' for file indexing mention trigger
+    const lastHashIndex = value.lastIndexOf('#');
     if (lastHashIndex !== -1) {
-      const textAfterHash = text.slice(lastHashIndex + 1);
-      if (!textAfterHash.includes(' ')) {
-        setMentionFilter(textAfterHash.toLowerCase());
+      const query = value.slice(lastHashIndex + 1);
+      if (!query.includes(' ') && !query.includes('\n')) {
+        setMentionFilter(query.toLowerCase());
         setIsMentionMenuOpen(true);
+        setIsPlusMenuOpen(false);
         return;
       }
     }
-    if (isMentionMenuOpen && !text.includes('#')) {
-      setIsMentionMenuOpen(false);
-    }
+    setIsMentionMenuOpen(false);
   };
 
   const handleSelectMentionFile = (file: ProjectFile) => {
@@ -156,7 +158,7 @@ export function ChatPanel({
       finalPrompt = focusHeader + (finalPrompt || 'Analisar arquivo(s) indexado(s).');
     }
 
-    onSendMessage(finalPrompt, 'general');
+    onSendMessage(finalPrompt, 'general', isWebSearchEnabled);
     setInputPrompt('');
     setMentionedFiles([]);
     setIsMentionMenuOpen(false);
@@ -291,193 +293,11 @@ export function ChatPanel({
     </AnimatePresence>
   );
 
-  const renderMentionPills = () => {
-    if (mentionedFiles.length === 0) return null;
-    return (
-      <div className="flex flex-wrap gap-1.5 mb-2 pb-1.5 border-b border-[#f4f4f5]">
-        {mentionedFiles.map((file, idx) => (
-          <span
-            key={file.id || `pill-${idx}`}
-            className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-[#fdf5f2] border border-[#BA4E20]/30 text-[#BA4E20] rounded-md text-[11px] font-mono font-medium"
-          >
-            <Paperclip className="w-3 h-3" />
-            <span className="max-w-[180px] truncate">{file.name}</span>
-            <button
-              type="button"
-              onClick={() => removeMentionedFile(file.id)}
-              className="hover:text-[#9c3f19] cursor-pointer ml-0.5"
-              title="Remover indexação"
-            >
-              <X className="w-3 h-3" />
-            </button>
-          </span>
-        ))}
-      </div>
-    );
-  };
-
   return (
     <main className="flex-1 flex flex-col h-screen max-h-screen overflow-hidden bg-[#fafafa] text-[#09090b] font-sans">
-      {/* Top Header Bar with Project Selector Dropdown */}
-      <header className="h-13 px-6 border-b border-[#e4e4e7] bg-white flex items-center justify-between select-none relative z-30 flex-shrink-0">
-        <div className="relative">
-          {/* Active Project Dropdown Trigger Button */}
-          <button
-            onClick={() => setIsHeaderDropdownOpen(!isHeaderDropdownOpen)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-[#f8f9fa] hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-lg transition-all text-left"
-          >
-            <Folder className="w-4 h-4 text-[#BA4E20]" />
-            <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-[#09090b]">
-                {activeProject ? activeProject.name : 'Selecionar Projeto'}
-              </span>
-              {activeProject?.category && (
-                <span className="text-[10px] font-mono bg-white border border-[#e4e4e7] text-[#71717a] px-2 py-0.5 rounded-full">
-                  {activeProject.category}
-                </span>
-              )}
-            </div>
-            <ChevronDown className="w-4 h-4 text-[#71717a] ml-1" />
-          </button>
-
-          {/* Header Project Selector Dropdown Menu */}
-          <AnimatePresence>
-            {isHeaderDropdownOpen && (
-              <>
-                <div
-                  key="header-backdrop"
-                  className="fixed inset-0 z-40"
-                  onClick={() => setIsHeaderDropdownOpen(false)}
-                />
-                <motion.div
-                  key="header-popover"
-                  initial={{ opacity: 0, y: -6, scale: 0.96 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -4, scale: 0.96 }}
-                  transition={{ duration: 0.12, ease: 'easeOut' }}
-                  className="absolute left-0 top-full mt-2 w-80 bg-white border border-[#e4e4e7] rounded-xl shadow-lg z-50 py-1 overflow-hidden"
-                >
-                  <div className="px-3.5 py-2 text-[10px] font-mono text-[#71717a] border-b border-[#e4e4e7] uppercase font-semibold">
-                    PROJETOS ({projects.length})
-                  </div>
-
-                  <div className="max-h-64 overflow-y-auto py-1">
-                    {projects.map((proj, idx) => {
-                      const isSelected = activeProject?.id === proj.id;
-                      const isDeletingThis = deletingProjectId === proj.id;
-
-                      return (
-                        <div
-                          key={proj.id || `proj-${idx}`}
-                          className={`group w-full px-3.5 py-2 text-xs flex items-center justify-between transition-colors ${
-                            isSelected
-                              ? 'bg-[#fdf5f2] text-[#09090b] font-semibold'
-                              : 'hover:bg-[#f8f9fa] text-[#71717a] hover:text-[#09090b]'
-                          }`}
-                        >
-                        <button
-                          onClick={() => {
-                            onSelectProject(proj);
-                            setIsHeaderDropdownOpen(false);
-                          }}
-                          className="flex-1 text-left truncate pr-2 cursor-pointer"
-                        >
-                          <div className="truncate">{proj.name}</div>
-                          <div className="text-[10px] font-mono text-[#71717a] font-normal">
-                            {proj.category || 'Residencial'}
-                          </div>
-                        </button>
-
-                        {/* Inline Delete Confirmation or Check icon / Action Buttons */}
-                        {isDeletingThis ? (
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onDeleteProject?.(proj.id);
-                                setDeletingProjectId(null);
-                              }}
-                              className="px-2 py-0.5 bg-[#BA4E20] hover:bg-[#9c3f19] text-white text-[10px] rounded font-medium cursor-pointer"
-                            >
-                              Excluir
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeletingProjectId(null);
-                              }}
-                              className="px-1.5 py-0.5 bg-[#e4e4e7] hover:bg-[#d4d4d8] text-[#09090b] text-[10px] rounded cursor-pointer"
-                            >
-                              Cancelar
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center justify-end shrink-0 min-w-[36px]">
-                            {/* Checkmark icon (shows on right when selected, hides on hover) */}
-                            {isSelected && (
-                              <div className="group-hover:hidden flex items-center">
-                                <Check className="w-4 h-4 text-[#BA4E20]" />
-                              </div>
-                            )}
-
-                            {/* Action Buttons (appear on hover, replacing checkmark) */}
-                            <div className="hidden group-hover:flex items-center gap-1">
-                              {onEditProject && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setIsHeaderDropdownOpen(false);
-                                    onEditProject(proj);
-                                  }}
-                                  className="p-1 hover:bg-white hover:text-[#BA4E20] border border-transparent hover:border-[#e4e4e7] rounded text-[#71717a] transition-all cursor-pointer"
-                                  title="Editar projeto"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              {onDeleteProject && (
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setDeletingProjectId(proj.id);
-                                  }}
-                                  className="p-1 hover:bg-white hover:text-[#BA4E20] border border-transparent hover:border-[#e4e4e7] rounded text-[#71717a] transition-all cursor-pointer"
-                                  title="Excluir projeto"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Create New Project Button */}
-                <div className="p-2 border-t border-[#e4e4e7]">
-                  <button
-                    onClick={() => {
-                      setIsHeaderDropdownOpen(false);
-                      onOpenNewProjectModal();
-                    }}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#BA4E20] hover:bg-[#9c3f19] text-white text-xs font-medium rounded-lg transition-colors shadow-2xs"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Criar Novo Projeto</span>
-                  </button>
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
-    </header>
-
       {/* Main Content View */}
       {!hasUserMessages ? (
-        /* BIELIK-INSPIRED EMPTY STATE CANVAS (LIGHT MODE) */
+        /* EMPTY STATE CANVAS (LIGHT MODE) */
         <div className="flex-1 flex flex-col items-center justify-center p-6 max-w-5xl mx-auto w-full select-none overflow-y-auto no-scrollbar">
           {/* Centered Heading */}
           <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-[#09090b] mb-8 text-center">
@@ -489,7 +309,7 @@ export function ChatPanel({
             {isPlusMenuOpen && renderPlusMenu()}
             {isMentionMenuOpen && renderMentionDropdown()}
 
-            {/* Input bar layout with + button, inline pills, textarea, and fixed send button */}
+            {/* Input bar layout with + button, web search toggle, inline pills, textarea, and send button */}
             <div className="flex flex-col gap-2">
               {/* Inline Mention Pills inside input container */}
               {mentionedFiles.length > 0 && (
@@ -532,6 +352,20 @@ export function ChatPanel({
                   </motion.div>
                 </motion.button>
 
+                {/* Web Search Toggle Button (Icon only with hover label) */}
+                <button
+                  type="button"
+                  onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
+                  title="Busca na web"
+                  className={`p-2 rounded-lg border transition-all cursor-pointer shrink-0 mt-0.5 ${
+                    isWebSearchEnabled
+                      ? 'bg-[#fdf5f2] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
+                      : 'bg-[#f8f9fa] border-[#e4e4e7] text-[#71717a] hover:text-[#09090b] hover:border-[#BA4E20]/40'
+                  }`}
+                >
+                  <Globe className={`w-4 h-4 ${isWebSearchEnabled ? 'text-[#BA4E20]' : 'text-[#71717a]'}`} />
+                </button>
+
                 <textarea
                   rows={3}
                   value={inputPrompt}
@@ -541,7 +375,7 @@ export function ChatPanel({
                   className="flex-1 bg-transparent text-sm md:text-base text-[#09090b] placeholder-[#a1a1aa] focus:outline-none resize-none leading-relaxed"
                 />
 
-                {/* Fixed Square Send Button - Never squished */}
+                {/* Fixed Square Send Button */}
                 <button
                   disabled={(!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading}
                   onClick={handleSend}
@@ -563,7 +397,7 @@ export function ChatPanel({
               <button
                 key={action.id || `qa-${idx}`}
                 disabled={isLoading}
-                onClick={() => onExecuteAction(action.id)}
+                onClick={() => handleExecuteAction(action.id)}
                 className="p-3.5 bg-white hover:bg-[#fdf5f2]/40 border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-xl transition-all text-left flex items-start gap-3 shadow-2xs group cursor-pointer"
               >
                 <div className="p-2 bg-[#fdf5f2] group-hover:bg-white border border-[#BA4E20]/20 rounded-lg flex-shrink-0 transition-colors">
@@ -573,7 +407,7 @@ export function ChatPanel({
                   <div className="font-semibold text-xs text-[#09090b] group-hover:text-[#BA4E20] transition-colors truncate">
                     {action.label}
                   </div>
-                  <div className="text-[11px] text-[#71717a] mt-0.5 leading-snug">
+                  <div className="text-[11px] text-[#71717a] truncate mt-0.5">
                     {action.description}
                   </div>
                 </div>
@@ -587,7 +421,7 @@ export function ChatPanel({
           </p>
         </div>
       ) : (
-        /* ACTIVE CONVERSATION THREAD (Strict height constraint + internal container scroll) */
+        /* ACTIVE CONVERSATION THREAD */
         <div className="flex-1 flex flex-col min-h-0 h-full overflow-hidden">
           <div
             ref={chatContainerRef}
@@ -595,6 +429,21 @@ export function ChatPanel({
           >
             {messages.map((msg, idx) => {
               const isUser = msg.role === 'user';
+              const isErrorMessage =
+                !isUser &&
+                (msg.content.includes('indisponível') ||
+                  msg.content.includes('sobrecarregado') ||
+                  msg.content.includes('Erro') ||
+                  msg.content.includes('503'));
+
+              const handleRetry = () => {
+                const lastUserMsg = [...messages].slice(0, idx).reverse().find((m) => m.role === 'user') ||
+                  [...messages].reverse().find((m) => m.role === 'user');
+                if (lastUserMsg && lastUserMsg.content) {
+                  onSendMessage(lastUserMsg.content, 'general', isWebSearchEnabled);
+                }
+              };
+
               return (
                 <div
                   key={msg.id || `msg-${idx}`}
@@ -616,11 +465,13 @@ export function ChatPanel({
                     </span>
                   </div>
 
-                  {/* Message Bubble Card - Shrink-wrapped to fit content, up to max-w-4xl */}
+                  {/* Message Bubble Card */}
                   <div
                     className={`group relative max-w-4xl p-3.5 px-4 border rounded-xl shadow-2xs ${
                       isUser
                         ? 'bg-[#f4f4f5] border-[#e4e4e7] text-[#09090b]'
+                        : isErrorMessage
+                        ? 'bg-red-50/50 border-red-200 text-[#09090b]'
                         : 'bg-white border-[#e4e4e7] text-[#09090b]'
                     }`}
                   >
@@ -630,8 +481,25 @@ export function ChatPanel({
                       <MarkdownRenderer content={msg.content} />
                     )}
 
+                    {/* Retry Button for Error Messages */}
+                    {isErrorMessage && (
+                      <div className="mt-3 pt-2 border-t border-red-200 flex items-center justify-between gap-4">
+                        <span className="text-[11px] text-red-600 font-medium">
+                          A IA não pôde concluir a requisição devido a instabilidade temporária.
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleRetry}
+                          className="px-3 py-1.5 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer shrink-0"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Tentar novamente</span>
+                        </button>
+                      </div>
+                    )}
+
                     {/* Copy Action Button */}
-                    {!isUser && (
+                    {!isUser && !isErrorMessage && (
                       <button
                         onClick={() => handleCopyText(msg.id, msg.content)}
                         className="absolute top-2 right-2 p-1.5 bg-white border border-[#e4e4e7] hover:border-[#BA4E20] rounded-md text-[#71717a] hover:text-[#BA4E20] opacity-0 group-hover:opacity-100 transition-all"
@@ -687,6 +555,20 @@ export function ChatPanel({
                 </motion.div>
               </motion.button>
 
+              {/* Web Search Toggle Button (Icon only with hover label) */}
+              <button
+                type="button"
+                onClick={() => setIsWebSearchEnabled(!isWebSearchEnabled)}
+                title="Busca na web"
+                className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
+                  isWebSearchEnabled
+                    ? 'bg-[#fdf5f2] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
+                    : 'bg-[#f8f9fa] border-[#e4e4e7] text-[#71717a] hover:text-[#09090b] hover:border-[#BA4E20]/40'
+                }`}
+              >
+                <Globe className={`w-4 h-4 ${isWebSearchEnabled ? 'text-[#BA4E20]' : 'text-[#71717a]'}`} />
+              </button>
+
               {/* Inline Mention Pills */}
               {mentionedFiles.map((file, idx) => (
                 <span
@@ -712,14 +594,13 @@ export function ChatPanel({
                 onChange={(e) => handleTextareaChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Enviar mensagem para Metope AI..."
-                className="flex-1 bg-transparent text-xs md:text-[13px] text-[#09090b] placeholder-[#a1a1aa] focus:outline-none px-1.5 py-1.5 resize-none leading-relaxed"
+                className="flex-1 bg-transparent text-sm text-[#09090b] placeholder-[#a1a1aa] focus:outline-none resize-none py-1"
               />
 
-              {/* Fixed Square Send Button - Never squished */}
               <button
                 disabled={(!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading}
                 onClick={handleSend}
-                className={`w-8 h-8 md:w-9 md:h-9 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors flex items-center justify-center shrink-0 ${
+                className={`p-2 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors flex items-center justify-center shrink-0 ${
                   (!inputPrompt.trim() && mentionedFiles.length === 0) || isLoading
                     ? 'opacity-40 cursor-not-allowed'
                     : 'cursor-pointer'
@@ -728,18 +609,9 @@ export function ChatPanel({
                 <Send className="w-4 h-4" />
               </button>
             </div>
-
-            {/* Safety Disclaimer Legend */}
-            <p className="text-[10px] font-mono text-[#a1a1aa] text-center mt-2 leading-tight">
-              O Metope AI pode cometer erros. Verifique a veracidade das informações e o cumprimento das normas técnicas com um profissional habilitado.
-            </p>
           </div>
         </div>
       )}
     </main>
   );
-
-  function onExecuteAction(actionType: QuickActionType) {
-    onSendMessage('', actionType);
-  }
 }

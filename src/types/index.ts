@@ -7,6 +7,14 @@ export interface Project {
   updated_at: string;
 }
 
+export interface Conversation {
+  id: string;
+  project_id: string;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ProjectFile {
   id: string;
   name: string;
@@ -20,6 +28,8 @@ export interface ProjectFile {
 
 export interface ChatMessage {
   id: string;
+  conversation_id?: string;
+  project_id?: string;
   role: 'user' | 'assistant';
   content: string;
   action_type?: 'general' | 'summary' | 'memorial' | 'layout_analysis' | 'generate_floorplan';

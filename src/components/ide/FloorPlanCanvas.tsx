@@ -12,14 +12,16 @@ import {
   Layers,
   Save,
   RotateCcw,
+  X,
 } from 'lucide-react';
 
 interface FloorPlanCanvasProps {
   data: FloorPlanData;
   onUpdateData?: (updatedData: FloorPlanData) => void;
+  onCloseCanvas?: () => void;
 }
 
-export function FloorPlanCanvas({ data, onUpdateData }: FloorPlanCanvasProps) {
+export function FloorPlanCanvas({ data, onUpdateData, onCloseCanvas }: FloorPlanCanvasProps) {
   const [floorPlan, setFloorPlan] = useState<FloorPlanData>(data);
   const [selectedRoomId, setSelectedRoomId] = useState<string | null>(null);
   
@@ -135,16 +137,21 @@ export function FloorPlanCanvas({ data, onUpdateData }: FloorPlanCanvasProps) {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#f8f9fa] relative select-none overflow-hidden font-sans">
       {/* Top Toolbar Bar */}
-      <div className="h-12 px-6 bg-white border-b border-[#e4e4e7] flex items-center justify-between z-20 shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#fdf5f2] border border-[#BA4E20]/30 rounded-md text-xs font-mono font-semibold text-[#BA4E20]">
-            <Layers className="w-3.5 h-3.5" />
-            <span>ESTUDO DE LAYOUT 2D</span>
-          </div>
-          <h2 className="text-sm font-semibold text-[#09090b] truncate max-w-xs">
+      <div className="h-12 px-5 bg-white border-b border-[#e4e4e7] flex items-center justify-between z-20 shrink-0">
+        <div className="flex items-center gap-2.5">
+          {onCloseCanvas && (
+            <button
+              onClick={onCloseCanvas}
+              className="p-1 hover:bg-[#f4f4f5] rounded-md text-[#71717a] hover:text-[#09090b] transition-colors cursor-pointer mr-1"
+              title="Fechar Canvas"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+          <h2 className="text-xs md:text-sm font-semibold text-[#09090b] truncate max-w-xs">
             {floorPlan.title}
           </h2>
-          <span className="text-xs font-mono text-[#71717a] bg-[#f4f4f5] px-2 py-0.5 rounded border border-[#e4e4e7]">
+          <span className="text-[11px] font-mono text-[#71717a] bg-[#f4f4f5] px-2 py-0.5 rounded border border-[#e4e4e7]">
             {floorPlan.boundary.width.toFixed(2)}m × {floorPlan.boundary.depth.toFixed(2)}m ({Math.round(totalCalculatedArea * 100) / 100} m²)
           </span>
         </div>
@@ -153,20 +160,20 @@ export function FloorPlanCanvas({ data, onUpdateData }: FloorPlanCanvasProps) {
         <div className="flex items-center gap-2">
           <button
             onClick={handleResetView}
-            className="p-1.5 bg-[#f8f9fa] hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-lg text-[#71717a] hover:text-[#BA4E20] transition-colors cursor-pointer text-xs flex items-center gap-1 font-mono"
+            className="px-2.5 py-1.5 bg-white hover:bg-[#fdf5f2] border border-[#e4e4e7] hover:border-[#BA4E20]/50 rounded-lg text-[#71717a] hover:text-[#BA4E20] transition-colors cursor-pointer text-xs flex items-center gap-1.5 font-medium"
             title="Resetar Visualização"
           >
             <RotateCcw className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Resetar</span>
+            <span>Resetar</span>
           </button>
 
           <button
             onClick={handleExportPNG}
-            className="p-1.5 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors cursor-pointer text-xs flex items-center gap-1.5 font-medium shadow-2xs"
+            className="px-3 py-1.5 bg-[#BA4E20] hover:bg-[#9c3f19] text-white rounded-lg transition-colors cursor-pointer text-xs flex items-center gap-1.5 font-medium shadow-2xs"
             title="Exportar Imagem PNG"
           >
             <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">Exportar PNG</span>
+            <span>Exportar PNG</span>
           </button>
         </div>
       </div>

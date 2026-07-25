@@ -1,4 +1,4 @@
-import { Project, ProjectFile, ChatMessage, QuickActionType, FloorPlanData } from '@/types';
+import { Project, ProjectFile, ChatMessage, QuickActionType, FloorPlanData, Conversation } from '@/types';
 import { supabase, getSessionId, clearSessionId } from './supabase';
 
 const STORAGE_BUCKET = 'project-files';
@@ -110,6 +110,8 @@ async function serializeFile(row: FileRow): Promise<ProjectFile> {
 
 type MessageRow = {
   id: string;
+  conversation_id?: string | null;
+  project_id?: string;
   role: string;
   content: string;
   action_type: string;
@@ -119,6 +121,8 @@ type MessageRow = {
 function serializeMessage(row: MessageRow): ChatMessage {
   return {
     id: row.id,
+    conversation_id: row.conversation_id || undefined,
+    project_id: row.project_id,
     role: row.role as ChatMessage['role'],
     content: row.content,
     action_type: row.action_type as ChatMessage['action_type'],
@@ -213,7 +217,14 @@ export class StorageService {
     const { userId, sessionId } = await getOwnerKey();
     const mimeType = inferMimeType(file);
     const ownerFolder = userId ?? sessionId ?? 'anon';
-    const storagePath = `${ownerFolder}/${projectId}/${Date.now()}_${file.name}`;
+
+    // Sanitize filename for Supabase Storage S3 key rules (alphanumeric, dots, dashes, underscores)
+    const sanitizedFileName = file.name
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]/g, '_');
+
+    const storagePath = `${ownerFolder}/${projectId}/${Date.now()}_${sanitizedFileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from(STORAGE_BUCKET)
@@ -292,7 +303,69 @@ export class StorageService {
     }
   }
 
+  // --- CONVERSATIONS ---
+  static async getConversations(projectId: string): Promise<Conversation[]> {
+    const { data, error } = await supabase
+      .from('conversations')
+      .select('*')
+      .eq('project_id', projectId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map((row) => ({
+      id: row.id,
+      project_id: row.project_id,
+      title: row.title,
+      created_at: row.created_at,
+      updated_at: row.updated_at,
+    }));
+  }
+
+  static async createConversation(projectId: string, title = 'Nova Conversa'): Promise<Conversation> {
+    const { userId, sessionId } = await getOwnerKey();
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert({
+        project_id: projectId,
+        title,
+        user_id: userId,
+        session_id: sessionId,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(error.message);
+    return {
+      id: data.id,
+      project_id: data.project_id,
+      title: data.title,
+      created_at: data.created_at,
+      updated_at: data.updated_at,
+    };
+  }
+
+  static async renameConversation(conversationId: string, newTitle: string): Promise<void> {
+    const { error } = await supabase
+      .from('conversations')
+      .update({ title: newTitle, updated_at: new Date().toISOString() })
+      .eq('id', conversationId);
+    if (error) throw new Error(error.message);
+  }
+
+  static async deleteConversation(conversationId: string): Promise<void> {
+    const { error } = await supabase.from('conversations').delete().eq('id', conversationId);
+    if (error) throw new Error(error.message);
+  }
+
   // --- MESSAGES ---
+  static async getConversationMessages(conversationId: string): Promise<ChatMessage[]> {
+    const { data, error } = await supabase
+      .from('messages')
+      .select('*')
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(error.message);
+    return (data ?? []).map(serializeMessage);
+  }
+
   static async getProjectMessages(projectId: string): Promise<ChatMessage[]> {
     const { data, error } = await supabase
       .from('messages')
@@ -305,6 +378,7 @@ export class StorageService {
 
   static async addMessage(
     projectId: string,
+    conversationId: string | undefined,
     role: 'user' | 'assistant',
     content: string,
     actionType: ChatMessage['action_type'] = 'general',
@@ -316,6 +390,7 @@ export class StorageService {
         user_id: userId,
         session_id: sessionId,
         project_id: projectId,
+        conversation_id: conversationId || null,
         role,
         content,
         action_type: actionType,
@@ -332,21 +407,24 @@ export class StorageService {
    */
   static async sendChat(
     projectId: string,
+    conversationId: string,
     userPrompt: string,
     actionType: QuickActionType | 'general' = 'general',
     files: ProjectFile[] = [],
+    forceSearch: boolean = false,
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage }> {
-    const userMessage = await this.addMessage(projectId, 'user', userPrompt, actionType);
+    const userMessage = await this.addMessage(projectId, conversationId, 'user', userPrompt, actionType);
 
-    const previousMessages = await this.getProjectMessages(projectId);
+    const previousMessages = await this.getConversationMessages(conversationId);
     const res = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         userPrompt,
-        files,
+        files, // Pass shared project files as context (NotebookLM style)
         actionType,
         previousMessages: previousMessages.map((m) => ({ role: m.role, content: m.content })),
+        forceSearch,
       }),
     });
 
@@ -355,10 +433,11 @@ export class StorageService {
       const data = await res.json();
       aiText = data.response || 'Não foi possível gerar parecer técnico no momento.';
     } else {
-      aiText = 'Não foi possível gerar parecer técnico no momento.';
+      const errData = await res.json().catch(() => ({}));
+      aiText = errData.error || 'O serviço de IA (Gemini) está temporariamente indisponível ou sobrecarregado.';
     }
 
-    const assistantMessage = await this.addMessage(projectId, 'assistant', aiText, actionType);
+    const assistantMessage = await this.addMessage(projectId, conversationId, 'assistant', aiText, actionType);
     return { userMessage, assistantMessage };
   }
 
