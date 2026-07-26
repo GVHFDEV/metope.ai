@@ -42,6 +42,7 @@ interface ChatPanelProps {
     forceThinking?: boolean,
   ) => void;
   isLoading: boolean;
+  aiStage?: { stage: string; message: string } | null;
 }
 
 function renderUserMessageContent(content: string) {
@@ -90,6 +91,7 @@ export function ChatPanel({
   onDeleteProject,
   onSendMessage,
   isLoading,
+  aiStage,
 }: ChatPanelProps) {
   const [inputPrompt, setInputPrompt] = useState('');
   const [copiedMsgId, setCopiedMsgId] = useState<string | null>(null);
@@ -473,7 +475,7 @@ export function ChatPanel({
 
               return (
                 <motion.div
-                  key={msg.id || `msg-${idx}`}
+                  key={`${msg.id || 'msg'}-${idx}`}
                   initial={{ opacity: 0, y: 12, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   transition={{ duration: 0.22, ease: 'easeOut' }}
@@ -562,16 +564,28 @@ export function ChatPanel({
               );
             })}
 
-            {/* 3 Pulsing Dots Loading Indicator */}
+            {/* Loading Indicator / Deep Thinking Pipeline */}
             {isLoading && (
               <div className="flex flex-col items-start space-y-1.5">
                 <div className="flex items-center gap-2 text-[11px] font-mono text-[#71717a] dark:text-[#a1a1aa]">
                   <span className="font-semibold text-[#09090b] dark:text-[#f4f4f5]">METOPE AI</span>
                 </div>
-                <div className="px-4 py-3 bg-white border border-[#e4e4e7] rounded-xl flex items-center gap-2 shadow-2xs">
-                  <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce [animation-delay:-0.3s]" />
-                  <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce [animation-delay:-0.15s]" />
-                  <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce" />
+                <div className="px-4 py-3 bg-white dark:bg-[#18181b] border border-[#e4e4e7] dark:border-[#27272a] rounded-xl flex items-center gap-3 shadow-2xs">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce [animation-delay:-0.3s]" />
+                    <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce [animation-delay:-0.15s]" />
+                    <span className="w-2 h-2 rounded-full bg-[#BA4E20] animate-bounce" />
+                  </div>
+                  {aiStage && (
+                    <div className="flex items-center gap-2 border-l border-[#e4e4e7] dark:border-[#27272a] pl-3 ml-1">
+                      <span className="text-[10px] font-bold tracking-wider uppercase text-[#BA4E20]">
+                        [{aiStage.stage}]
+                      </span>
+                      <span className="text-xs text-[#52525b] dark:text-[#a1a1aa]">
+                        {aiStage.message}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}

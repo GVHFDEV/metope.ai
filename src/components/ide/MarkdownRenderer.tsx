@@ -19,15 +19,12 @@ function preprocessMarkdown(text: string): string {
   if (!text) return '';
   let processed = text.trim();
 
-  // Strip full-message code block wrapper if model wrapped entire response in ```markdown ... ``` or ``` ... ```
-  if (
-    (processed.startsWith('```markdown') || processed.startsWith('```')) &&
-    processed.endsWith('```') &&
-    !processed.includes('```floorplan_data')
-  ) {
-    const lines = processed.split('\n');
-    if (lines.length > 2) {
-      processed = lines.slice(1, -1).join('\n').trim();
+  // Strip full-message code block wrapper se a IA embrulhar toda a resposta.
+  if (!processed.includes('```floorplan_data')) {
+    const wrapperRegex = /^\s*```[a-zA-Z]*\n([\s\S]*?)\n```\s*$/;
+    const match = processed.match(wrapperRegex);
+    if (match && match[1]) {
+      processed = match[1].trim();
     }
   }
 

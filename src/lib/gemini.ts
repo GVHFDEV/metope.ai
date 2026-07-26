@@ -15,14 +15,17 @@ export interface GenerateChatRequest {
   * (Gemini, AWS Bedrock Mantle, Grok/GLM-5/Kimi) as encrypted Secrets.
   * Includes automatic retry and detailed error parsing from Supabase FunctionsHttpError context.
   */
-export async function callGeminiApi({
-  userPrompt,
-  files,
-  actionType = 'general',
-  previousMessages = [],
-  forceSearch = false,
-  forceThinking = false,
-}: GenerateChatRequest): Promise<{ response: string; modelUsed: string }> {
+export async function callGeminiApi(
+  {
+    userPrompt,
+    files,
+    actionType = 'general',
+    previousMessages = [],
+    forceSearch = false,
+    forceThinking = false,
+  }: GenerateChatRequest,
+  onProgress?: (stage: string, message: string) => void
+): Promise<{ response: string; modelUsed: string }> {
   const payload = {
     userPrompt,
     files: files.map((f) => ({
@@ -41,51 +44,112 @@ export async function callGeminiApi({
   let lastError: Error | null = null;
   const maxAttempts = 2;
 
+  const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/functions/v1/ai-chat`;
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const { data, error } = await supabase.functions.invoke('ai-chat', {
-        body: payload,
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+          apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+        body: JSON.stringify(payload),
       });
 
-      if (error) {
-        let serverMessage = error.message;
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`HTTP ${res.status}: ${text}`);
+      }
 
-        // Try to extract exact JSON error body returned by the Edge Function
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const errContext = (error as any).context;
-        if (errContext && typeof errContext.json === 'function') {
-          try {
-            const errJson = await errContext.json();
-            if (errJson && errJson.error) {
-              serverMessage = errJson.error;
+      const reader = res.body?.getReader();
+      const decoder = new TextDecoder();
+      let finalResponse = { response: '', modelUsed: '' };
+      
+      if (reader) {
+        let buffer = '';
+        let currentEvent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          const lines = buffer.split(/\r?\n/);
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) {
+              currentEvent = '';
+              continue;
             }
-          } catch (_e) {
-            // ignore JSON parse failure
+
+            if (trimmed.startsWith('event:')) {
+              currentEvent = trimmed.substring(6).trim();
+            } else if (trimmed.startsWith('data:')) {
+              const dataStr = trimmed.substring(5).trim();
+              try {
+                const dataJson = JSON.parse(dataStr);
+                if (currentEvent === 'stage' && onProgress) {
+                  onProgress(dataJson.stage, dataJson.message);
+                } else if (currentEvent === 'chunk' && onProgress) {
+                  onProgress('chunk', dataJson.text);
+                } else if (currentEvent === 'done') {
+                  finalResponse = dataJson;
+                } else if (currentEvent === 'error') {
+                  throw new Error(dataJson.error || 'Erro na Edge Function');
+                }
+              } catch (e) {
+                if (e instanceof Error && !e.message.includes('JSON')) throw e;
+              }
+            }
           }
         }
 
-        throw new Error(serverMessage || 'Falha na comunicação com a Supabase Edge Function ai-chat.');
+        // Process any remaining text in buffer after stream completes
+        if (buffer.trim()) {
+          const lines = buffer.split(/\r?\n/);
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('event:')) {
+              currentEvent = trimmed.substring(6).trim();
+            } else if (trimmed.startsWith('data:')) {
+              const dataStr = trimmed.substring(5).trim();
+              try {
+                const dataJson = JSON.parse(dataStr);
+                if (currentEvent === 'done') {
+                  finalResponse = dataJson;
+                } else if (currentEvent === 'error') {
+                  throw new Error(dataJson.error || 'Erro na Edge Function');
+                }
+              } catch (e) {
+                if (e instanceof Error && !e.message.includes('JSON')) throw e;
+              }
+            }
+          }
+        }
       }
 
-      if (!data || !data.response) {
+      if (!finalResponse.response) {
         throw new Error('Resposta vazia retornada pela Supabase Edge Function ai-chat.');
       }
 
       return {
-        response: data.response,
-        modelUsed: data.modelUsed || 'moonshotai.kimi-k2-thinking',
+        response: finalResponse.response,
+        modelUsed: finalResponse.modelUsed || 'moonshotai.kimi-k2-thinking',
       };
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err));
       console.warn(`[callGeminiApi] Tentativa ${attempt} de ${maxAttempts} falhou:`, lastError.message);
 
-      // If it's a rate limit or prompt size error, don't retry, fail immediately
       if (lastError.message.includes('Limite') || lastError.message.includes('excede')) {
         break;
       }
-
       if (attempt < maxAttempts) {
-        // Wait 1 second before retrying
         await new Promise((res) => setTimeout(res, 1000));
       }
     }
@@ -93,5 +157,5 @@ export async function callGeminiApi({
 
   const message = lastError?.message || 'Erro desconhecido';
   console.error('Erro final ao chamar a Supabase Edge Function ai-chat:', message);
-  throw new Error(`Falha no serviço de IA (${message}). Certifique-se de implantar a Edge Function com '--no-verify-jwt' e cadastrar as Secrets no Supabase Dashboard.`);
+  throw new Error(`Falha no serviço de IA (${message}).`);
 }

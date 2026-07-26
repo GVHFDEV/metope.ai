@@ -436,6 +436,7 @@ export class StorageService {
     files: ProjectFile[] = [],
     forceSearch: boolean = false,
     forceThinking: boolean = false,
+    onProgress?: (stage: string, message: string) => void
   ): Promise<{ userMessage: ChatMessage; assistantMessage: ChatMessage }> {
     const userMessage = await this.addMessage(projectId, conversationId, 'user', userPrompt, actionType);
 
@@ -451,7 +452,7 @@ export class StorageService {
         previousMessages: previousMessages.map((m) => ({ role: m.role, content: m.content })),
         forceSearch,
         forceThinking,
-      });
+      }, onProgress);
       aiText = res.response;
       modelUsed = res.modelUsed;
     } catch (err) {

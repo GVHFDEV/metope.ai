@@ -44,14 +44,6 @@ O Metope AI utiliza uma arquitetura de **orquestração multi-modelo em 2 estág
 | **Thinking** | **Ativado por Padrão** (Thinking ON out-of-the-box) |
 | **Função** | Chat técnico padrão, síntese de respostas e formatação com raciocínio integrado |
 
-### 2.2 xAI — Grok 4.3 (Modelo de Pensamento Avançado & Troca de Grafo)
-
-| Atributo | Valor |
-|---|---|
-| **Model ID** | `xai.grok-4.3` |
-| **Provider** | xAI via AWS Bedrock Mantle / API (`us-east-2`) |
-| **Gatilho de Troca** | Ativação do botão de Pensamento Avançado (`forceThinking: true`) OU detecção pelo Grafo de Intenção (cálculos estruturais, normas ABNT, memoriais, plantas) |
-| **Função** | Raciocínio arquitetônico profundo, análise espacial avançada e Chain-of-Thought complexo |
 
 ### 2.2 Google — Gemini 3.5 Flash Lite (Modelo Perceptivo)
 

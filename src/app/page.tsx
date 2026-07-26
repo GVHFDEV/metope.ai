@@ -61,6 +61,7 @@ export default function HomePage() {
   const [previewFile, setPreviewFile] = useState<ProjectFile | null>(null);
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
   const [projectToRename, setProjectToRename] = useState<Project | null>(null);
+  const [aiStage, setAiStage] = useState<{stage: string, message: string} | null>(null);
 
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
@@ -456,9 +457,33 @@ export default function HomePage() {
         files, // Pass shared project files as context (NotebookLM style)
         forceSearch,
         forceThinking,
+        (stage, message) => {
+          if (stage === 'chunk') {
+            setMessages((prev) => {
+              const lastMsg = prev[prev.length - 1];
+              if (lastMsg && lastMsg.id === 'optimistic-ai') {
+                const updated = [...prev];
+                updated[updated.length - 1] = { ...lastMsg, content: lastMsg.content + message };
+                return updated;
+              } else {
+                return [...prev, {
+                  id: 'optimistic-ai',
+                  conversation_id: targetConversationId,
+                  project_id: targetProject.id,
+                  role: 'assistant',
+                  content: message,
+                  action_type: actionType,
+                  created_at: new Date().toISOString()
+                }];
+              }
+            });
+            return;
+          }
+          setAiStage({ stage, message });
+        }
       );
       setMessages((prev) => [
-        ...prev.filter((m) => m.id !== optimisticUserMsg.id),
+        ...prev.filter((m) => m.id !== optimisticUserMsg.id && m.id !== 'optimistic-ai'),
         userMessage,
         assistantMessage,
       ]);
@@ -620,6 +645,7 @@ export default function HomePage() {
             activeProject={activeProject}
             messages={messages}
             files={files}
+            aiStage={aiStage}
             onSelectProject={handleSelectProject}
             onOpenNewProjectModal={() => {
               setProjectToRename(null);
