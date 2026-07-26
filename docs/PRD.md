@@ -261,5 +261,5 @@ src/
 | Frontend Next.js | Vercel (recomendado) ou qualquer provider com suporte a Next.js 16 |
 | Backend (DB, Auth, Storage) | Supabase Cloud |
 | Edge Function (`ai-chat`) | Supabase Edge Functions (Deno Deploy) |
-| IA Kimi K2.5 | AWS Bedrock Mantle (`bedrock-mantle.us-east-1.api.aws`) |
+| IA Kimi K2.5 | AWS Bedrock Mantle (`bedrock-mantle.us-east-2.api.aws`) |
 | IA Gemini Flash Lite | Google AI Studio (`generativelanguage.googleapis.com`) |

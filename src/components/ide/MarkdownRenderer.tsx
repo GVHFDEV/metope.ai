@@ -12,12 +12,24 @@ interface MarkdownRendererProps {
 }
 
 /**
- * Preprocesses raw text from Gemini/User to normalize math block delimiters
- * and fix markdown table spacing for standard GFM parsing.
+ * Preprocesses raw text from Gemini/User to normalize math block delimiters,
+ * strip full-message markdown code wrappers, and fix markdown table spacing.
  */
 function preprocessMarkdown(text: string): string {
   if (!text) return '';
-  let processed = text;
+  let processed = text.trim();
+
+  // Strip full-message code block wrapper if model wrapped entire response in ```markdown ... ``` or ``` ... ```
+  if (
+    (processed.startsWith('```markdown') || processed.startsWith('```')) &&
+    processed.endsWith('```') &&
+    !processed.includes('```floorplan_data')
+  ) {
+    const lines = processed.split('\n');
+    if (lines.length > 2) {
+      processed = lines.slice(1, -1).join('\n').trim();
+    }
+  }
 
   // Remove any legacy "### Fontes Consultadas..." brown markdown headings
   processed = processed.replace(/###\s*Fontes Consultadas[^\n]*/gi, '');
@@ -153,7 +165,7 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
               </ol>
             );
           },
-          li: ({ children }) => <span className="inline-block shrink-0">{children}</span>,
+          li: ({ children }) => <li className="my-0.5">{children}</li>,
           blockquote: ({ children }) => (
             <blockquote className="border-l-2 border-[#BA4E20] pl-3 py-1.5 my-2 text-[#52525b] dark:text-[#a1a1aa] bg-[#fdf5f2]/50 dark:bg-[#27272a]/50 rounded-r-md italic">
               {children}
@@ -206,7 +218,9 @@ export function MarkdownRenderer({ content }: MarkdownRendererProps) {
                 </div>
               );
             }
-            const isBlock = className?.includes('language-');
+            const contentStr = String(children || '');
+            const isMultiLine = contentStr.includes('\n');
+            const isBlock = Boolean(className?.includes('language-') || isMultiLine);
             if (isBlock) {
               return (
                 <pre className="bg-[#18181b] dark:bg-[#0c0c0e] text-[#f4f4f5] p-3 rounded-lg overflow-x-auto text-[11px] font-mono my-2 border border-[#27272a]">

@@ -63,13 +63,50 @@ const MAX_FILE_DOWNLOAD_BYTES = 10 * 1024 * 1024; // 10MB
 
 const METOPE_SYSTEM_PROMPT = `Você é o Metope AI, um copiloto de inteligência artificial especializado em arquitetura, engenharia civil e análise de projetos prediais.
 
-REGRAS DE CONDUTA E ESTILO DE COMUNICAÇÃO:
-1. Tom estritamente profissional, técnico, preciso e objetivo. Sem linguagem promocional ou vendedor.
-2. NUNCA use emojis em suas respostas.
-3. Formate suas respostas em Markdown estruturado, com títulos claros em H2/H3, tabelas de especificações quando aplicável, listas organizadas e destaque em negrito para termos técnicos (ex: **pé-direito**, **ventilação cruzada**, **taxa de ocupação**, **NBR 9050**, **memorial descritivo**).
-4. Utilize terminologia arquitetônica adequada (layout, programa de necessidades, circulação, insolação, cota, taxa de permeabilidade, iluminação natural, especificação de acabamentos).
-5. Quando o usuário fizer perguntas conceituais ou teóricas ("O que é uma planta baixa?", "Como funciona a taxa de ocupação?", "Me explique as cotas deste PDF"), RESPONDA COM EXPOSIÇÃO TÉCNICA EM MARKDOWN. NÃO invoque a ferramenta de geração de planta baixa para perguntas teóricas.
-6. QUANDO O USUÁRIO SOLICITAR PARA CRIAR, GERAR OU DESENHAR UMA PLANTA BAIXA OU LAYOUT: INVOQUE IMEDIATAMENTE A FERRAMENTA \`generate_floor_plan\` NO PRIMEIRO TURNO. NUNCA FAÇA PERGUNTAS DE ESCLARECIMENTO OU INTERROGATÓRIOS. Adote dimensões e cômodos padrão sensatos (ex: residência de 120m² com 2 a 3 quartos) para qualquer detalhe não fornecido.`;
+REGRAS DE CONDUTA E ESTILO DE COMUNICAÇÃO (EM ORDEM RIGOROSA DE PRIORIDADE):
+
+1. ABSTENÇÃO OBRIGATÓRIA DIANTE DE DADOS INSUFICIENTES:
+Se a pergunta do usuário não fornece dados suficientes para determinar uma medida, percentual, orientação solar, localização ou especificação técnica, declare explicitamente que não é possível determinar com os dados disponíveis e pergunte pelo dado que falta. NUNCA preencha uma lacuna com um número ou estimativa plausível sem sinalizar expressamente que se trata de uma suposição hipotética.
+
+2. TESTE DE NECESSIDADE ANTES DE CITAR ESPECIFICAÇÕES TÉCNICAS:
+Antes de mencionar qualquer norma (ex: NBRs), material, método construtivo, software, ensaio ou valor numérico, avalie internamente: "isso é estritamente necessário para responder exatamente o que foi perguntado?". Se não for, OMITA. Um especialista de verdade demonstra domínio fornecendo a informação certa, não citando tudo que sabe.
+
+3. PROPORCIONALIDADE ESTRITA:
+O tamanho e a formalidade da resposta devem ser rigorosamente proporcionais à pergunta. Pergunta curta e direta exige resposta curta e direta, sem estrutura de relatório técnico, sem introdução, sem conclusão e sem seções.
+
+4. ECONOMIA RIGOROSA DE TOKENS COMO RESTRIÇÃO RÍGIDA:
+Trate cada frase adicional como um custo a ser justificado. Nenhuma frase deve ser incluída "para dar mais contexto" se não foi pedida. Recomendações não solicitadas, ressalvas genéricas, avisos de "consulte um profissional" e explicações de conceitos não perguntados devem ser cortados por padrão.
+
+5. FORMATAÇÃO EQUILIBRADA:
+Use divisórias, listas ou subtítulos apenas quando a resposta tiver múltiplas partes distintas (ex: comparação entre opções ou passo a passo de várias etapas). Para respostas de uma ideia só, use texto corrido sem formatação estrutural. NUNCA use emojis.
+
+6. TRATAMENTO DE AMBIGUIDADE E DADOS INSUFICIENTES:
+(a) Se a resposta puder ser útil mesmo com ambiguidade, responda deixando explícitas as premissas adotadas.
+(b) Se a ambiguidade impedir uma resposta confiável, faça uma pergunta objetiva de volta antes de responder. Nunca escolha silenciosamente um cenário hipotético como se fosse o único.
+
+7. CHAMADA DE FERRAMENTAS:
+Quando o usuário solicitar para criar, gerar ou desenhar uma planta baixa ou layout 2D, invoque a ferramenta generate_floor_plan no mesmo turno. Adote dimensões sensatas para detalhes não fornecidos.
+
+---
+
+EXEMPLOS DE COMPORTAMENTO (FEW-SHOT EXAMPLES):
+
+[Exemplo 1 - Pergunta simples e objetiva]
+Usuário: O que é pé-direito duplo?
+Resposta: Pé-direito duplo é quando a distância entre o piso e o teto de um ambiente tem a altura equivalente a dois andares, geralmente entre 5 e 6 metros. É utilizado para ampliar a iluminação natural, ventilação e sensação espacial do imóvel.
+
+[Exemplo 2 - Pergunta com dado insuficiente]
+Usuário: Qual a taxa de ocupação do meu terreno?
+Resposta: Não é possível determinar a taxa de ocupação sem a área total do terreno e a sua localização. Para calcular essa taxa, informe a metragem quadrada do lote e o município ou código de zoneamento urbano.
+
+[Exemplo 3 - Pergunta que exige detalhamento técnico]
+Usuário: Como funciona o cálculo de rampa de acessibilidade segundo a norma brasileira?
+Resposta: O dimensionamento de rampas de acessibilidade no Brasil é regido pela NBR 9050. A inclinação padrão recomendada é de 8,33% (proporção 1:12), significando 1 metro de elevação a cada 12 metros de comprimento horizontal.
+
+Regras de inclinação por desnível:
+- Desníveis até 0,80m: inclinação máxima de 8,33% (máximo de 15m de comprimento por segmento).
+- Reformas com desnível máximo de 0,20m: inclinação permitida entre 8,33% e 10%.
+- Largura mínima recomendada de 1,20m com patamar de descanso a cada 50m de percurso ou em mudanças de direção.`;
 
 // OpenAPI/OpenAI-compatible Tool Specifications
 const openAiTools = [
@@ -291,6 +328,107 @@ function validateOutputResponse(text: string): string {
   return trimmed;
 }
 
+// Deterministic Binary Checklist Guard: Evaluates response against binary criteria and rewrites if necessary
+async function evaluateAndRewriteGuard({
+  userPrompt,
+  rawText,
+  baseUrl,
+  apiKey,
+}: {
+  userPrompt: string;
+  rawText: string;
+  baseUrl: string;
+  apiKey: string;
+}): Promise<string> {
+  if (!rawText || rawText.trim().length < 20) return rawText;
+
+  // Separate any floorplan_data block to ensure it is never corrupted by text rewrite
+  let floorPlanSuffix = '';
+  let textToEvaluate = rawText;
+  const fpIndex = rawText.indexOf('```floorplan_data');
+  if (fpIndex !== -1) {
+    floorPlanSuffix = rawText.slice(fpIndex);
+    textToEvaluate = rawText.slice(0, fpIndex).trim();
+  }
+
+  const guardSystemPrompt = `Você é o Guard Editor estrito do Metope AI. Sua função é aplicar um checklist determinístico sobre a resposta inicial da IA. O SEU OBJETIVO PRINCIPAL É PRESERVAR 100% DAS INFORMAÇÕES ESSENCIAIS, CÁLCULOS E RESPOSTAS DIRETAS, removendo APENAS prolixidade, avisos genéricos repetidos ("consulte um engenheiro/arquiteto"), saudações e explicações teóricas que não foram solicitadas.`;
+
+  const guardUserPrompt = `[PERGUNTA DO USUÁRIO]:
+"${userPrompt}"
+
+[RESPOSTA INICIAL DA IA]:
+"""
+${textToEvaluate}
+"""
+
+[CHECKLIST BINÁRIO DE AVALIAÇÃO]:
+1. A resposta contém jargões, normas ou teorias extensas que NÃO foram pedidas pelo usuário? (SIM/NÃO)
+2. A resposta contém avisos genéricos repetitivos ("consulte um profissional"), saudações ou explicações introdutórias desnecessárias? (SIM/NÃO)
+3. O comprimento da resposta é desproporcional à complexidade da pergunta? (SIM/NÃO)
+
+INSTRUÇÕES DE EXECUÇÃO E REGRAS DE PRESERVAÇÃO DE DADOS:
+- Se TODAS as respostas forem NÃO: retorne EXATAMENTE o texto da RESPOSTA INICIAL sem alterar nada.
+- Se QUALQUER resposta for SIM: REESCREVA a resposta removendo todo o excesso, jargões não pedidos e avisos genéricos.
+- REGRA CRÍTICA DE PRESERVAÇÃO DE DADOS: A reescrita DEVE PRESERVAR 100% de todos os dados numéricos, cálculos, metragens, percentuais, fórmulas e conclusões da resposta original. É ESTRITAMENTE PROIBIDO apagar, resumir ou omitir números ou resultados de cálculo da resposta original. Retorne APENAS o texto da resposta final corrigida, sem comentários adicionais.`;
+
+  try {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: 'moonshotai.kimi-k2-thinking',
+        messages: [
+          { role: 'system', content: guardSystemPrompt },
+          { role: 'user', content: guardUserPrompt },
+        ],
+        temperature: 0.1,
+      }),
+    });
+
+    if (res.ok) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const data: any = await res.json();
+      const rewritten = data.choices?.[0]?.message?.content?.trim();
+      if (rewritten && rewritten.length > 5 && rewritten !== textToEvaluate) {
+        // DATA PRESERVATION GUARD CHECK:
+        // Extract key numbers (integers, decimals, percentages) from original text to ensure they were not stripped out
+        const origNumbers = (textToEvaluate.match(/\b\d+(?:[.,]\d+)?\b/g) || []);
+        const rewrittenNumbers = new Set(rewritten.match(/\b\d+(?:[.,]\d+)?\b/g) || []);
+
+        let missingNumbersCount = 0;
+        for (const num of origNumbers) {
+          if (!rewrittenNumbers.has(num)) {
+            missingNumbersCount++;
+          }
+        }
+
+        // If rewrite omitted more than 30% of key numbers present in original, reject rewrite
+        if (origNumbers.length >= 3 && (missingNumbersCount / origNumbers.length) > 0.3) {
+          console.warn(`[Guard Rewrite Rejected]: A reescrita omitiu ${missingNumbersCount} de ${origNumbers.length} dados numéricos originais. Mantendo resposta original.`);
+          return rawText;
+        }
+
+        console.log('[Guard Rewrite Log]: Resposta reescrita mantendo integridade dos dados numéricos.', {
+          originalLength: textToEvaluate.length,
+          rewrittenLength: rewritten.length,
+          numbersPreserved: `${origNumbers.length - missingNumbersCount}/${origNumbers.length}`,
+        });
+
+        return floorPlanSuffix ? `${rewritten}\n\n${floorPlanSuffix}` : rewritten;
+      }
+    } else {
+      console.warn(`[Guard Evaluation Warning]: Modelo do Guard retornou HTTP ${res.status}. Mantendo resposta original.`);
+    }
+  } catch (err) {
+    console.warn('[Guard Evaluation Error]: Falha ao executar verificação do Guard:', err);
+  }
+
+  return rawText;
+}
+
 interface AgentPlanJSON {
   requires_perception_gemini: boolean;
   requires_web_search: boolean;
@@ -333,9 +471,9 @@ function planExecutionGraph({
     /cálculo|dimensiona|norma|abnt|estrutur|memorial|setoriza|insolação|acessibilid|recuo|taxa de ocupação|gabarito|estudo de viabilidade/i.test(userPrompt);
 
   // Default synthesis model: moonshotai.kimi-k2-thinking (thinking ON by default)
-  // Model switch on Deep Thinking / JSON graph analysis: grok-2 (or custom DEEP_THINKING_MODEL_ID secret)
+  // Model switch on Deep Thinking / JSON graph analysis: xai.grok-4.3 (or custom DEEP_THINKING_MODEL_ID secret)
   const selectedModel = isDeepThinkingIntent
-    ? (Deno.env.get('DEEP_THINKING_MODEL_ID') || 'grok-2')
+    ? (Deno.env.get('DEEP_THINKING_MODEL_ID') || 'xai.grok-4.3')
     : (Deno.env.get('DEFAULT_SYNTHESIS_MODEL') || 'moonshotai.kimi-k2-thinking');
 
   return {
@@ -346,7 +484,7 @@ function planExecutionGraph({
     reason: isDeepThinkingIntent
       ? 'Troca de Modelo Dinâmica: Modo de Pensamento Avançado / Análise Estrutural (xAI Grok 4.3)'
       : requiresGemini
-      ? 'Agente Perceptivo Gemini 3.5 Flash Lite + Síntese Padrão (Moonshot Kimi K2 Thinking)'
+      ? 'Agente Perceptivo Gemini Flash Lite + Síntese Padrão (Moonshot Kimi K2 Thinking)'
       : 'Síntese Padrão de Fábrica com Thinking Ativado (Moonshot Kimi K2 Thinking)',
   };
 }
@@ -473,11 +611,11 @@ serve(async (req: Request) => {
 
         geminiParts.push({ text: geminiPrompt + `\n[SOLICITAÇÃO DO USUÁRIO]: ${userPrompt}` });
 
-        const geminiModelId = Deno.env.get('GEMINI_MODEL_ID') || 'gemini-3.5-flash-lite';
-        const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModelId}:generateContent?key=${geminiApiKey}`;
+        const geminiModelId = Deno.env.get('GEMINI_MODEL_ID') || 'gemini-2.5-flash';
+        let geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModelId}:generateContent?key=${geminiApiKey}`;
         const toolsPayload = plan.requires_web_search ? [{ googleSearch: {} }] : [];
 
-        const gRes = await fetch(geminiUrl, {
+        let gRes = await fetch(geminiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -487,6 +625,25 @@ serve(async (req: Request) => {
           }),
         });
 
+        // Automatic Retry on HTTP 429 Rate Limit (Quota Exceeded) with Model Fallback
+        if (!gRes.ok && gRes.status === 429) {
+          console.warn(`[Edge Function] Gemini (${geminiModelId}) retornou HTTP 429 (Rate Limit). Re-tentando em 1.2s...`);
+          await new Promise((resolve) => setTimeout(resolve, 1200));
+
+          const fallbackGeminiModel = geminiModelId.includes('1.5') ? 'gemini-2.5-flash' : 'gemini-1.5-flash';
+          geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${fallbackGeminiModel}:generateContent?key=${geminiApiKey}`;
+
+          gRes = await fetch(geminiUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ parts: geminiParts }],
+              systemInstruction: { parts: [{ text: METOPE_SYSTEM_PROMPT }] },
+              tools: toolsPayload,
+            }),
+          });
+        }
+
         if (gRes.ok) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const gData: any = await gRes.json();
@@ -494,7 +651,6 @@ serve(async (req: Request) => {
           geminiPerceptionOutput = candidate?.content?.parts?.[0]?.text || '';
 
           if (geminiPerceptionOutput.trim()) {
-            // ONLY add Gemini Flash Lite badge if the API call actually succeeded and returned text!
             modelsUsedList.push(geminiModelId);
           }
 
@@ -506,7 +662,7 @@ serve(async (req: Request) => {
             }
           }
         } else {
-          console.warn(`[Edge Function] Chamada ao Gemini Flash Lite falhou (HTTP ${gRes.status}).`);
+          console.warn(`[Edge Function] Chamada ao Gemini Perceptivo falhou (HTTP ${gRes.status}).`);
         }
       }
     }
@@ -516,7 +672,7 @@ serve(async (req: Request) => {
     modelsUsedList.push(targetModel);
 
     const apiKey = Deno.env.get('OPENAI_API_KEY') || Deno.env.get('BEDROCK_API_KEY') || Deno.env.get('GEMINI_API_KEY') || '';
-    const baseUrl = (Deno.env.get('OPENAI_BASE_URL') || 'https://bedrock-mantle.us-east-1.api.aws/v1').replace(/\/$/, '');
+    const baseUrl = (Deno.env.get('OPENAI_BASE_URL') || 'https://bedrock-mantle.us-east-2.api.aws/v1').replace(/\/$/, '');
 
     if (!apiKey) {
       throw new Error('Secret OPENAI_API_KEY não configurado nas Secrets do Supabase.');
@@ -593,6 +749,21 @@ serve(async (req: Request) => {
           body: JSON.stringify(requestPayload),
         });
       }
+
+      // Attempt 2.5: If Grok failed with HTTP 400, retry using AWS Bedrock Inference Profile prefix ('us.xai.grok-4.3')
+      if (!response.ok && targetModel.includes('grok')) {
+        const altGrokModel = targetModel.startsWith('us.') ? targetModel.replace(/^us\./, '') : `us.${targetModel}`;
+        console.warn(`[Edge Function] Re-tentando Grok com o ID de Inference Profile alternativo '${altGrokModel}'...`);
+        requestPayload.model = altGrokModel;
+        response = await fetch(`${baseUrl}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: JSON.stringify(requestPayload),
+        });
+      }
     }
 
     // Attempt 3: Fallback to moonshotai.kimi-k2-thinking if targetModel is unroutable or rejected by proxy
@@ -658,8 +829,16 @@ serve(async (req: Request) => {
       });
     }
 
-    // 2. Output Validation Step
-    const validatedText = validateOutputResponse(rawText);
+    // 2. Deterministic Binary Checklist Guard Pass & Rewrite
+    const guardedText = await evaluateAndRewriteGuard({
+      userPrompt: userPrompt || '',
+      rawText: rawText,
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+    });
+
+    // 3. Output Validation Step
+    const validatedText = validateOutputResponse(guardedText);
 
     // Deduplicate models used
     const uniqueModels = Array.from(new Set(modelsUsedList)).join(' + ');

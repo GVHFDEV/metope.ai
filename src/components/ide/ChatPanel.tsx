@@ -391,7 +391,7 @@ export function ChatPanel({
                   <button
                     type="button"
                     onClick={() => setIsThinkingEnabled(!isThinkingEnabled)}
-                    title="Pensamento avançado (Raciocínio profundo Kimi)"
+                    title="Pensamento avançado (Raciocínio técnico profundo)"
                     className={`p-2 rounded-lg border transition-all cursor-pointer shrink-0 ${
                       isThinkingEnabled
                         ? 'bg-[#fdf5f2] dark:bg-[#3f2015] border-[#BA4E20] text-[#BA4E20] shadow-2xs'
@@ -618,7 +618,7 @@ export function ChatPanel({
               <button
                 type="button"
                 onClick={() => setIsThinkingEnabled(!isThinkingEnabled)}
-                title="Pensamento avançado (Raciocínio profundo Kimi)"
+                title="Pensamento avançado (Raciocínio técnico profundo)"
                 className={`p-1.5 rounded-lg border transition-all cursor-pointer shrink-0 ${
                   isThinkingEnabled
                     ? 'bg-[#fdf5f2] dark:bg-[#3f2015] border-[#BA4E20] text-[#BA4E20] shadow-2xs'

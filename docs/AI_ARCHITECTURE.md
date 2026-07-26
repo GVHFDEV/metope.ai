@@ -49,7 +49,7 @@ O Metope AI utiliza uma arquitetura de **orquestração multi-modelo em 2 estág
 | Atributo | Valor |
 |---|---|
 | **Model ID** | `xai.grok-4.3` |
-| **Provider** | xAI via AWS Bedrock Mantle / API (`us-east-1`) |
+| **Provider** | xAI via AWS Bedrock Mantle / API (`us-east-2`) |
 | **Gatilho de Troca** | Ativação do botão de Pensamento Avançado (`forceThinking: true`) OU detecção pelo Grafo de Intenção (cálculos estruturais, normas ABNT, memoriais, plantas) |
 | **Função** | Raciocínio arquitetônico profundo, análise espacial avançada e Chain-of-Thought complexo |
 
@@ -226,7 +226,7 @@ Quando o Kimi K2.5 decide invocar `generate_floor_plan`:
 | Secret Name | Uso |
 |---|---|
 | `OPENAI_API_KEY` | API key para AWS Bedrock Mantle (Kimi K2.5), fallback para Gemini |
-| `OPENAI_BASE_URL` | `https://bedrock-mantle.us-east-1.api.aws/v1` |
+| `OPENAI_BASE_URL` | `https://bedrock-mantle.us-east-2.api.aws/v1` |
 | `GEMINI_API_KEY` | API key para Google AI Studio (Gemini Flash Lite) |
 | `GEMINI_MODEL_ID` | `gemini-3.5-flash-lite` (configurável) |
 | `BEDROCK_MODEL_ID` | `moonshotai.kimi-k2.5` (configurável) |
